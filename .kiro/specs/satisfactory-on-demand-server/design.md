@@ -17,9 +17,26 @@ The solution is designed to minimize costs by automatically shutting down the Sa
 ```
 ┌─────────────────┐
 │  Admin Panel    │
-│  (React + S3)   │
+│ (React + Vite)  │
 └────────┬────────┘
          │ HTTPS
+         ▼
+┌─────────────────┐
+│   CloudFront    │
+│  Distribution   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   S3 Bucket     │
+│ (Static Files)  │
+└─────────────────┘
+
+┌─────────────────┐
+│  Admin Panel    │
+│ (React + Vite)  │
+└────────┬────────┘
+         │ HTTPS API Calls
          ▼
 ┌─────────────────┐
 │  API Gateway    │
@@ -33,7 +50,7 @@ The solution is designed to minimize costs by automatically shutting down the Sa
 │Lambda  │ │  ECS Fargate │
 │Control │ │  Satisfactory│
 │        │ │  Server      │
-└────────┘ └──────┬───────┘
+└───┬────┘ └──────┬───────┘
     │             │
     │             ▼
     │      ┌──────────────┐
@@ -41,11 +58,32 @@ The solution is designed to minimize costs by automatically shutting down the Sa
     │      │  (Game Saves)│
     │      └──────────────┘
     │
-    ▼
-┌─────────────────┐
-│ Secrets Manager │
-│  (API Tokens)   │
-└─────────────────┘
+    ├─────────────────────┐
+    │                     │
+    ▼                     ▼
+┌─────────────────┐ ┌─────────────────┐
+│ Secrets Manager │ │   EventBridge   │
+│  (Passwords &   │ │     Rules       │
+│   API Tokens)   │ │                 │
+└─────────────────┘ └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │ Monitor Lambda  │
+                    │   (Auto-Stop)   │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │   DynamoDB      │
+                    │ (Timer State)   │
+                    └─────────────────┘
+
+┌─────────────────┐ ┌─────────────────┐
+│  AWS Budgets    │ │      SNS        │
+│   (Cost Alert)  │─│   (Email        │
+│                 │ │ Notifications)  │
+└─────────────────┘ └─────────────────┘
 ```
 
 ### Component Interaction Flow
