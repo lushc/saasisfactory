@@ -65,7 +65,7 @@
 
 - [ ] 6. Implement Lambda authorizer function
 - [ ] 6.1 Create Lambda authorizer function code
-  - Set up Node.js project with TypeScript
+  - Set up Node.js 24.x project with TypeScript
   - Implement JWT token extraction from Authorization header
   - Add JWT signature verification using jsonwebtoken library
   - Implement token expiration check (1-hour limit)
@@ -91,7 +91,7 @@
 
 - [ ] 7. Implement Control Lambda function
 - [ ] 7.1 Create Control Lambda project structure
-  - Set up Node.js project with TypeScript
+  - Set up Node.js 24.x project with TypeScript
   - Install dependencies (AWS SDK v3, axios, jsonwebtoken)
   - Create shared utilities for Satisfactory Server API calls
   - _Requirements: 11.1, 11.2, 11.3_
@@ -172,7 +172,7 @@
 
 - [ ] 8. Implement Monitor Lambda function
 - [ ] 8.1 Create Monitor Lambda function code
-  - Set up Node.js project with TypeScript
+  - Set up Node.js 24.x project with TypeScript
   - Check if ECS task is running
   - Retrieve and verify Satisfactory Server API token
   - Call QueryServerState to get player count
@@ -226,8 +226,8 @@
 
 - [ ] 10. Implement Admin Panel
 - [ ] 10.1 Create React + Vite + Tailwind project
-  - Initialize Vite project with React and TypeScript
-  - Install and configure Tailwind CSS
+  - Initialize Vite 7 project with React 19 and TypeScript
+  - Install and configure Tailwind CSS 4
   - Set up project structure (components, services, types)
   - Configure environment variables for API URL
   - _Requirements: 9.1, 9.2, 9.3_
@@ -271,7 +271,7 @@
 - [ ] 10.7 Add responsive design and styling
   - Ensure mobile-friendly layout
   - Add loading spinners and error messages
-  - Style buttons and forms with Tailwind
+  - Style buttons and forms with Tailwind CSS 4
   - _Requirements: 9.4_
 
 - [ ] 10.8 **CHECKPOINT: Update steering documents**

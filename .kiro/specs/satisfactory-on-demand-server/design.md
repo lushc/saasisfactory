@@ -187,7 +187,7 @@ All routes except `/auth/login` are protected by the Lambda authorizer which val
 
 #### 3.1 Authorizer Lambda
 
-**Runtime**: Node.js 20.x
+**Runtime**: Node.js 24.x
 
 **Purpose**: Validate JWT tokens for API requests
 
@@ -237,7 +237,7 @@ interface JWTPayload {
 
 #### 3.2 Control Lambda
 
-**Runtime**: Node.js 20.x
+**Runtime**: Node.js 24.x
 
 **Purpose**: Start, stop, and query Satisfactory Server status; handle authentication
 
@@ -378,7 +378,7 @@ interface SetClientPasswordResponse {
 
 #### 3.3 Monitor Lambda
 
-**Runtime**: Node.js 20.x
+**Runtime**: Node.js 24.x
 
 **Purpose**: Monitor player count and implement auto-shutdown logic
 
@@ -593,9 +593,9 @@ Response:
 ### 5. Admin Panel (React + Vite + Tailwind)
 
 **Technology Stack**:
-- React 18
-- Vite 5 (build tool)
-- Tailwind CSS 3
+- React 19
+- Vite 7 (build tool)
+- Tailwind CSS 4
 - TypeScript
 - Axios (HTTP client)
 

@@ -7,7 +7,7 @@
 
 ## Backend
 
-- **Runtime**: Node.js 20.x with TypeScript
+- **Runtime**: Node.js 24.x with TypeScript
 - **Lambda Functions**: Three functions (Authorizer, Control, Monitor)
 - **Key Libraries**:
   - AWS SDK v3 (@aws-sdk/client-*)
@@ -16,9 +16,9 @@
 
 ## Frontend
 
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite 5
-- **Styling**: Tailwind CSS 3
+- **Framework**: React 19 with TypeScript
+- **Build Tool**: Vite 7
+- **Styling**: Tailwind CSS 4
 - **HTTP Client**: Axios
 - **Hosting**: S3 static website + CloudFront
 
