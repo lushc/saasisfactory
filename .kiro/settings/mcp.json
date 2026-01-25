@@ -33,11 +33,17 @@
         "awslabs.aws-iac-mcp-server@latest"
       ],
       "env": {
-        "AWS_PROFILE": "your-named-profile",
+        "AWS_PROFILE": "default",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
-      "autoApprove": []
+      "autoApprove": [
+        "read_iac_documentation_page",
+        "search_cdk_documentation",
+        "search_cdk_samples_and_constructs",
+        "cdk_best_practices",
+        "search_cloudformation_documentation"
+      ]
     }
   }
 }
