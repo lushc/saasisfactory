@@ -321,8 +321,8 @@
   - Add email subscription
   - _Requirements: 10.2_
 
-- [ ] 13. Create post-deployment script
-- [ ] 13.1 Write post-deploy.sh script
+- [x] 13. Create post-deployment script
+- [x] 13.1 Write post-deploy.sh script
   - Check if admin password exists, generate if not (32 chars)
   - Check if JWT secret exists, generate if not (64 chars)
   - Use `put-secret-value` to update existing secrets
@@ -332,7 +332,7 @@
   - **Note: Script created locally - will be used in Task 15 for actual deployment**
   - _Requirements: 8.5, 13.1, 13.2_
 
-- [ ] 13.2 Make script executable and test
+- [x] 13.2 Make script executable and test
   - Set execute permissions on script
   - Test idempotency (run multiple times)
   - Verify secrets are created/updated correctly
