@@ -98,25 +98,25 @@
   - Configure caching (optional)
   - _Requirements: 11.6_
 
-- [ ] 7. Implement Control Lambda function
-- [ ] 7.1 Create Control Lambda project structure
+- [x] 7. Implement Control Lambda function
+- [x] 7.1 Create Control Lambda project structure
   - Set up Node.js 24.x project with TypeScript
   - Install dependencies (AWS SDK v3, axios, jsonwebtoken)
   - Create shared utilities for Satisfactory Server API calls
   - _Requirements: 11.1, 11.2, 11.3_
 
-- [ ] 7.2 Implement POST /auth/login endpoint
+- [x] 7.2 Implement POST /auth/login endpoint
   - Validate password against Secrets Manager
   - Generate JWT token with 1-hour expiration
   - Return token and expiration time
   - Handle authentication errors
   - _Requirements: 8.2, 8.4_
 
-- [ ] 7.3 Write property test for password validation and JWT generation
+- [x] 7.3 Write property test for password validation and JWT generation
   - **Property 6: Password Validation and JWT Generation**
   - **Validates: Requirements 8.2**
 
-- [ ] 7.4 Implement POST /server/start endpoint
+- [x] 7.4 Implement POST /server/start endpoint
   - Update ECS service desired count to 1
   - Wait for task to reach RUNNING state
   - Get task public IP address
@@ -128,7 +128,7 @@
   - Return server status and public IP
   - _Requirements: 6.2, 3.4_
 
-- [ ] 7.5 Implement POST /server/stop endpoint
+- [x] 7.5 Implement POST /server/stop endpoint
   - Retrieve Satisfactory Server API token from Secrets Manager
   - Verify token with VerifyAuthenticationToken
   - If invalid, regenerate via PasswordLogin
@@ -138,21 +138,21 @@
   - Return success status
   - _Requirements: 7.2, 7.3_
 
-- [ ] 7.6 Implement GET /server/status endpoint
+- [x] 7.6 Implement GET /server/status endpoint
   - Query ECS for task status
   - If running, retrieve API token and verify
   - Call QueryServerState to get player count and game state
   - Return comprehensive status (state, IP, port, player count)
   - _Requirements: 5.1, 5.2, 5.3, 11.3_
 
-- [ ] 7.7 Implement GET /server/client-password endpoint
+- [x] 7.7 Implement GET /server/client-password endpoint
   - Retrieve Satisfactory Server API token
   - Verify token with VerifyAuthenticationToken
   - Retrieve client password from Secrets Manager
   - Return password
   - _Requirements: 8A.1, 11.4_
 
-- [ ] 7.8 Implement POST /server/client-password endpoint
+- [x] 7.8 Implement POST /server/client-password endpoint
   - Retrieve Satisfactory Server API token
   - Verify token with VerifyAuthenticationToken
   - Call SetClientPassword API
@@ -160,19 +160,19 @@
   - Return success status
   - _Requirements: 8A.3, 8A.4, 11.5_
 
-- [ ] 7.9 Write property test for API authentication enforcement
+- [x] 7.9 Write property test for API authentication enforcement
   - **Property 8: API Authentication Enforcement**
   - **Validates: Requirements 11.6**
 
-- [ ] 7.10 Write property test for API error response format
+- [x] 7.10 Write property test for API error response format
   - **Property 9: API Error Response Format**
   - **Validates: Requirements 11.7**
 
-- [ ] 7.11 Write property test for secret isolation
+- [x] 7.11 Write property test for secret isolation
   - **Property 10: Secret Isolation**
   - **Validates: Requirements 13.3, 13.5**
 
-- [ ] 7.12 Create CloudFormation resource for Control Lambda
+- [x] 7.12 Create CloudFormation resource for Control Lambda
   - Define Lambda function resource
   - Set up IAM role with ECS, Secrets Manager, EventBridge permissions
   - Configure environment variables (cluster name, service name, etc.)

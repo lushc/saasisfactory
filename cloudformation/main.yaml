@@ -634,6 +634,134 @@ Resources:
         - Key: Purpose
           Value: 'JWT token validation for API Gateway requests'
 
+  # IAM Role for Control Lambda Function
+  ControlLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-control-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ECSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                  - ecs:DescribeServices
+                  - ecs:ListTasks
+                  - ecs:DescribeTasks
+                Resource:
+                  - !Ref SatisfactoryService
+                  - !Sub '${ECSCluster.Arn}/*'
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:PutSecretValue
+                Resource:
+                  - !Ref AdminPasswordSecret
+                  - !Ref JWTSecretSecret
+                  - !Ref ServerAdminPasswordSecret
+                  - !Ref ServerAPITokenSecret
+                  - !Ref ClientPasswordSecret
+        - PolicyName: EventBridgeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:PutTargets
+                  - events:DeleteRule
+                  - events:RemoveTargets
+                Resource: !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/satisfactory-monitor-rule'
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub '${ControlLambdaLogGroup.Arn}:*'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-control-lambda-role'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'IAM role for Control Lambda with ECS, Secrets Manager, and EventBridge permissions'
+
+  # CloudWatch Log Group for Control Lambda
+  ControlLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-control'
+      RetentionInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-control-lambda-log-group'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  # Control Lambda Function
+  ControlLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-control'
+      Runtime: nodejs24.x
+      Handler: index.handler
+      Role: !GetAtt ControlLambdaRole.Arn
+      Code:
+        ZipFile: |
+          // Placeholder code - will be replaced during deployment
+          exports.handler = async (event) => {
+            console.log('Control Lambda placeholder - replace with actual code');
+            return {
+              statusCode: 501,
+              headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+                'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+              },
+              body: JSON.stringify({
+                error: 'Not Implemented',
+                message: 'Control Lambda not yet deployed'
+              })
+            };
+          };
+      Description: 'Control Lambda for Satisfactory Server lifecycle management'
+      Environment:
+        Variables:
+          AWS_REGION: !Ref 'AWS::Region'
+          CLUSTER_NAME: !Ref ECSCluster
+          SERVICE_NAME: !Ref SatisfactoryService
+          MONITOR_LAMBDA_ARN: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-monitor'
+      Timeout: 300
+      MemorySize: 256
+      LoggingConfig:
+        LogGroup: !Ref ControlLambdaLogGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-control-lambda'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Server lifecycle management and API endpoints'
+
   # API Gateway HTTP API
   SatisfactoryAPI:
     Type: AWS::ApiGatewayV2::Api
@@ -695,6 +823,85 @@ Resources:
       AuthorizerResultTtlInSeconds: 300
       EnableSimpleResponses: false
       AuthorizerPayloadFormatVersion: '1.0'
+
+  # Lambda Permission for API Gateway to invoke Control Lambda
+  ControlLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ControlLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub '${SatisfactoryAPI}/*/*'
+
+  # API Gateway Routes and Integrations for Control Lambda
+
+  # Integration for Control Lambda
+  ControlLambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlLambdaFunction.Arn}/invocations'
+      PayloadFormatVersion: '1.0'
+      TimeoutInMillis: 30000
+
+  # POST /auth/login (no authentication required)
+  AuthLoginRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      RouteKey: 'POST /auth/login'
+      Target: !Sub 'integrations/${ControlLambdaIntegration}'
+
+  # POST /server/start (requires authentication)
+  ServerStartRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      RouteKey: 'POST /server/start'
+      Target: !Sub 'integrations/${ControlLambdaIntegration}'
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref SatisfactoryAPIAuthorizer
+
+  # POST /server/stop (requires authentication)
+  ServerStopRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      RouteKey: 'POST /server/stop'
+      Target: !Sub 'integrations/${ControlLambdaIntegration}'
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref SatisfactoryAPIAuthorizer
+
+  # GET /server/status (requires authentication)
+  ServerStatusRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      RouteKey: 'GET /server/status'
+      Target: !Sub 'integrations/${ControlLambdaIntegration}'
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref SatisfactoryAPIAuthorizer
+
+  # GET /server/client-password (requires authentication)
+  GetClientPasswordRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      RouteKey: 'GET /server/client-password'
+      Target: !Sub 'integrations/${ControlLambdaIntegration}'
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref SatisfactoryAPIAuthorizer
+
+  # POST /server/client-password (requires authentication)
+  SetClientPasswordRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      RouteKey: 'POST /server/client-password'
+      Target: !Sub 'integrations/${ControlLambdaIntegration}'
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref SatisfactoryAPIAuthorizer
     
 # Outputs section - Export key resource identifiers for reference
 Outputs:
@@ -889,6 +1096,25 @@ Outputs:
     Value: !GetAtt AuthorizerLambdaRole.Arn
     Export:
       Name: !Sub '${AWS::StackName}-AuthorizerLambdaRole-Arn'
+
+  # Control Lambda Function Outputs
+  ControlLambdaFunctionName:
+    Description: 'Name of the Control Lambda function for server lifecycle management'
+    Value: !Ref ControlLambdaFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-ControlLambdaFunction-Name'
+
+  ControlLambdaFunctionArn:
+    Description: 'ARN of the Control Lambda function for server lifecycle management'
+    Value: !GetAtt ControlLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ControlLambdaFunction-Arn'
+
+  ControlLambdaRoleArn:
+    Description: 'ARN of the IAM role for Control Lambda function'
+    Value: !GetAtt ControlLambdaRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ControlLambdaRole-Arn'
 
   # API Gateway Outputs
   SatisfactoryAPIId:
