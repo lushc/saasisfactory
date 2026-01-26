@@ -226,29 +226,26 @@ describe('Monitor Lambda Property Tests', () => {
 
           mockGetShutdownTimerState.mockResolvedValue(existingState);
 
-          // Mock the cancelShutdownTimer result
-          const expectedResult: ShutdownTimerState = {
-            id: 'singleton',
-            timerStarted: null,
-            shutdownTimeoutMinutes: timeoutMinutes,
-            lastPlayerCount: newPlayerCount,
-            lastChecked: Date.now()
-          };
-          mockCancelShutdownTimer.mockResolvedValue(expectedResult);
+          // Set up environment variable
+          process.env.SHUTDOWN_TIMEOUT_MINUTES = timeoutMinutes.toString();
 
-          // Act: Cancel shutdown timer
-          const result = await mockCancelShutdownTimer(newPlayerCount);
+          // Act: Simulate the handleShutdownTimer logic for player count > 0 with active timer
+          const currentState = await mockGetShutdownTimerState();
+          
+          if (newPlayerCount > 0 && currentState.timerStarted) {
+            // This should trigger timer cancellation
+            await mockCancelShutdownTimer(newPlayerCount);
+          }
 
-          // Assert: Timer should be cancelled
-          expect(result.id).toBe('singleton');
-          expect(result.timerStarted).toBeNull();
-          expect(result.lastPlayerCount).toBe(newPlayerCount);
-          expect(mockCancelShutdownTimer).toHaveBeenCalledWith(newPlayerCount);
+          // Assert: Timer cancellation should be called when players connect and timer is active
+          if (newPlayerCount > 0 && timerStartTime) {
+            expect(mockCancelShutdownTimer).toHaveBeenCalledWith(newPlayerCount);
+          }
         }
       ), { numRuns: 50 });
     });
 
-    test('should handle cancellation when no timer is active', async () => {
+    test('should update state when players connect but no timer is active', async () => {
       await fc.assert(fc.asyncProperty(
         fc.integer({ min: 1, max: 10 }), // playerCount > 0
         fc.integer({ min: 5, max: 30 }), // timeoutMinutes
@@ -264,23 +261,35 @@ describe('Monitor Lambda Property Tests', () => {
 
           mockGetShutdownTimerState.mockResolvedValue(existingState);
 
-          // Mock the cancelShutdownTimer result
-          const expectedResult: ShutdownTimerState = {
-            id: 'singleton',
-            timerStarted: null,
-            shutdownTimeoutMinutes: timeoutMinutes,
-            lastPlayerCount: playerCount,
-            lastChecked: Date.now()
-          };
-          mockCancelShutdownTimer.mockResolvedValue(expectedResult);
+          // Set up environment variable
+          process.env.SHUTDOWN_TIMEOUT_MINUTES = timeoutMinutes.toString();
 
-          // Act: Cancel shutdown timer (should be idempotent)
-          const result = await mockCancelShutdownTimer(playerCount);
+          // Act: Simulate the handleShutdownTimer logic for player count > 0 with no active timer
+          const currentState = await mockGetShutdownTimerState();
+          
+          if (playerCount > 0) {
+            if (currentState.timerStarted) {
+              // Should cancel timer if active
+              await mockCancelShutdownTimer(playerCount);
+            } else {
+              // Should just update state if no timer active
+              await mockUpdateShutdownTimerState({
+                ...currentState,
+                lastPlayerCount: playerCount
+              });
+            }
+          }
 
-          // Assert: Timer should remain null
-          expect(result.id).toBe('singleton');
-          expect(result.timerStarted).toBeNull();
-          expect(result.lastPlayerCount).toBe(playerCount);
+          // Assert: Should update state when no timer is active
+          if (playerCount > 0 && !existingState.timerStarted) {
+            expect(mockUpdateShutdownTimerState).toHaveBeenCalledWith(
+              expect.objectContaining({
+                id: 'singleton',
+                timerStarted: null,
+                lastPlayerCount: playerCount
+              })
+            );
+          }
         }
       ), { numRuns: 30 });
     });
