@@ -271,6 +271,77 @@ Resources:
         - Key: Purpose
           Value: 'Stores shutdown timer state for auto-shutdown functionality'
 
+  # Secrets Manager Secrets for Secure Storage
+  AdminPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-admin-password'
+      Description: 'Admin Panel password for authenticating to the web interface'
+      SecretString: 'PLACEHOLDER_ADMIN_PASSWORD'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-admin-password-secret'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Stores admin panel password for web interface authentication'
+
+  JWTSecretSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-jwt-secret'
+      Description: 'JWT secret key for signing and verifying authentication tokens'
+      SecretString: 'PLACEHOLDER_JWT_SECRET'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-jwt-secret-secret'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Stores JWT secret key for token signing and verification'
+
+  ServerAdminPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-server-admin-password'
+      Description: 'Satisfactory Server admin password for API authentication'
+      SecretString: 'PLACEHOLDER_SERVER_ADMIN_PASSWORD'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-server-admin-password-secret'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Stores Satisfactory Server admin password for API access'
+
+  ServerAPITokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-api-token'
+      Description: 'Satisfactory Server API token for authenticated API calls'
+      SecretString: 'PLACEHOLDER_API_TOKEN'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-api-token-secret'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Stores Satisfactory Server API token for authenticated requests'
+
+  ClientPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-client-password'
+      Description: 'Satisfactory Server client protection password for game access'
+      SecretString: 'PLACEHOLDER_CLIENT_PASSWORD'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-client-password-secret'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Stores client protection password for game server access'
+
   # IAM Role for ECS Task Execution (pull images, write logs)
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
@@ -537,6 +608,67 @@ Outputs:
     Value: !GetAtt ShutdownTimerTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-ShutdownTimerTable-Arn'
+
+  # Secrets Manager Outputs
+  AdminPasswordSecretName:
+    Description: 'Name of the Secrets Manager secret for admin panel password'
+    Value: !Ref AdminPasswordSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-AdminPasswordSecret-Name'
+
+  AdminPasswordSecretArn:
+    Description: 'ARN of the Secrets Manager secret for admin panel password'
+    Value: !Ref AdminPasswordSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-AdminPasswordSecret-Arn'
+
+  JWTSecretSecretName:
+    Description: 'Name of the Secrets Manager secret for JWT signing key'
+    Value: !Ref JWTSecretSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-JWTSecretSecret-Name'
+
+  JWTSecretSecretArn:
+    Description: 'ARN of the Secrets Manager secret for JWT signing key'
+    Value: !Ref JWTSecretSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-JWTSecretSecret-Arn'
+
+  ServerAdminPasswordSecretName:
+    Description: 'Name of the Secrets Manager secret for Satisfactory Server admin password'
+    Value: !Ref ServerAdminPasswordSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ServerAdminPasswordSecret-Name'
+
+  ServerAdminPasswordSecretArn:
+    Description: 'ARN of the Secrets Manager secret for Satisfactory Server admin password'
+    Value: !Ref ServerAdminPasswordSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ServerAdminPasswordSecret-Arn'
+
+  ServerAPITokenSecretName:
+    Description: 'Name of the Secrets Manager secret for Satisfactory Server API token'
+    Value: !Ref ServerAPITokenSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ServerAPITokenSecret-Name'
+
+  ServerAPITokenSecretArn:
+    Description: 'ARN of the Secrets Manager secret for Satisfactory Server API token'
+    Value: !Ref ServerAPITokenSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ServerAPITokenSecret-Arn'
+
+  ClientPasswordSecretName:
+    Description: 'Name of the Secrets Manager secret for client protection password'
+    Value: !Ref ClientPasswordSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ClientPasswordSecret-Name'
+
+  ClientPasswordSecretArn:
+    Description: 'ARN of the Secrets Manager secret for client protection password'
+    Value: !Ref ClientPasswordSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ClientPasswordSecret-Arn'
 
   # ECS Outputs
   ECSClusterName:

@@ -56,8 +56,8 @@
   - Define least-privilege policies
   - _Requirements: 1.5_
 
-- [~] 4. Implement Secrets Manager resources
-- [ ] 4.1 Create Secrets Manager secrets in CloudFormation
+- [x] 4. Implement Secrets Manager resources
+- [x] 4.1 Create Secrets Manager secrets in CloudFormation
   - Create `satisfactory-admin-password` secret with placeholder
   - Create `satisfactory-jwt-secret` secret with placeholder
   - Create `satisfactory-server-admin-password` secret with placeholder
