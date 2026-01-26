@@ -298,14 +298,14 @@
   - Update `.kiro/steering/tech.md` with frontend patterns and any additional libraries
   - Verify steering docs reflect current state of frontend implementation
 
-- [ ] 11. Implement S3 and CloudFront for Admin Panel hosting
-- [ ] 11.1 Create S3 bucket in CloudFormation
+- [x] 11. Implement S3 and CloudFront for Admin Panel hosting
+- [x] 11.1 Create S3 bucket in CloudFormation
   - Define S3 bucket for static website hosting
   - Configure bucket encryption
   - Set up bucket policy for CloudFront access
   - _Requirements: 9.5_
 
-- [ ] 11.2 Create CloudFront distribution in CloudFormation
+- [x] 11.2 Create CloudFront distribution in CloudFormation
   - Define CloudFront distribution
   - Configure origin as S3 bucket
   - Set up default cache behavior
