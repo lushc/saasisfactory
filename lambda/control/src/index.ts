@@ -42,6 +42,38 @@ const CLUSTER_NAME = config.aws.clusterName;
 const SERVICE_NAME = config.aws.serviceName;
 const MONITOR_LAMBDA_ARN = config.aws.monitorLambdaArn;
 
+/**
+ * Validate JWT token from Authorization header
+ */
+async function validateJwtToken(event: APIGatewayProxyEvent): Promise<void> {
+  const authHeader = event.headers?.authorization || event.headers?.Authorization;
+  
+  if (!authHeader) {
+    throw new AuthenticationError('Authorization header is required');
+  }
+  
+  if (!authHeader.startsWith('Bearer ')) {
+    throw new AuthenticationError('Invalid authorization header format');
+  }
+  
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  
+  if (!token || token.trim() === '') {
+    throw new AuthenticationError('JWT token is required');
+  }
+  
+  try {
+    // Get JWT secret key
+    const jwtSecret = await getSecret(config.secrets.jwtSecret);
+    
+    // Verify JWT token
+    jwt.verify(token, jwtSecret);
+  } catch (error) {
+    console.error('JWT validation error:', error);
+    throw new AuthenticationError('Invalid or expired JWT token');
+  }
+}
+
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -55,14 +87,19 @@ export const handler = async (
     if (method === 'POST' && path === '/auth/login') {
       return await handleLogin(event);
     } else if (method === 'POST' && path === '/server/start') {
+      await validateJwtToken(event);
       return await handleServerStart(event);
     } else if (method === 'POST' && path === '/server/stop') {
+      await validateJwtToken(event);
       return await handleServerStop(event);
     } else if (method === 'GET' && path === '/server/status') {
+      await validateJwtToken(event);
       return await handleServerStatus(event);
     } else if (method === 'GET' && path === '/server/client-password') {
+      await validateJwtToken(event);
       return await handleGetClientPassword(event);
     } else if (method === 'POST' && path === '/server/client-password') {
+      await validateJwtToken(event);
       return await handleSetClientPassword(event);
     } else {
       return createErrorResponse(404, 'NOT_FOUND', 'Endpoint not found');
@@ -87,7 +124,12 @@ async function handleLogin(event: APIGatewayProxyEvent): Promise<APIGatewayProxy
       throw new ValidationError('Request body is required');
     }
 
-    const request: LoginRequest = JSON.parse(event.body);
+    let request: LoginRequest;
+    try {
+      request = JSON.parse(event.body);
+    } catch (error) {
+      throw new ValidationError('Invalid JSON in request body');
+    }
     
     if (!request.password) {
       throw new ValidationError('Password is required');
@@ -443,7 +485,12 @@ async function handleSetClientPassword(event: APIGatewayProxyEvent): Promise<API
       throw new ValidationError('Request body is required');
     }
     
-    const request: SetClientPasswordRequest = JSON.parse(event.body);
+    let request: SetClientPasswordRequest;
+    try {
+      request = JSON.parse(event.body);
+    } catch (error) {
+      throw new ValidationError('Invalid JSON in request body');
+    }
     
     if (typeof request.password !== 'string') {
       throw new ValidationError('Password must be a string');
