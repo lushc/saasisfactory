@@ -1,18 +1,17 @@
 import * as fc from 'fast-check';
-import jwt from 'jsonwebtoken';
 import { handler } from './index';
-import { APIGatewayRequestAuthorizerEvent, Context } from 'aws-lambda';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { 
+  createJwtToken, 
+  createMockAuthorizerEvent, 
+  createMockContext,
+  TEST_JWT_SECRET 
+} from '../../shared/test-helpers';
 
 // Mock AWS SDK
 jest.mock('@aws-sdk/client-secrets-manager');
 const mockSecretsClient = SecretsManagerClient as jest.MockedClass<typeof SecretsManagerClient>;
 const mockSend = jest.fn();
-
-// Test constants
-const TEST_JWT_SECRET = 'test-jwt-secret-key-for-property-testing';
-const MOCK_ACCOUNT_ID = '123456789012';
-const MOCK_API_ID = 'abcdef123';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -23,92 +22,6 @@ beforeEach(() => {
     SecretString: TEST_JWT_SECRET
   });
 });
-
-// Helper function to create mock event
-function createMockEvent(token: string, methodArn: string): APIGatewayRequestAuthorizerEvent {
-  return {
-    type: 'REQUEST',
-    methodArn: `arn:aws:execute-api:us-east-1:${MOCK_ACCOUNT_ID}:${MOCK_API_ID}/${methodArn}`,
-    resource: '/test',
-    path: '/test',
-    httpMethod: 'GET',
-    headers: {
-      authorization: `Bearer ${token}`
-    },
-    multiValueHeaders: {},
-    queryStringParameters: null,
-    multiValueQueryStringParameters: null,
-    pathParameters: null,
-    stageVariables: null,
-    requestContext: {
-      resourceId: 'test',
-      resourcePath: '/test',
-      httpMethod: 'GET',
-      extendedRequestId: 'test',
-      requestTime: new Date().toISOString(),
-      path: '/test',
-      accountId: MOCK_ACCOUNT_ID,
-      protocol: 'HTTP/1.1',
-      stage: 'test',
-      domainPrefix: 'test',
-      requestTimeEpoch: Date.now(),
-      requestId: 'test',
-      authorizer: undefined,
-      identity: {
-        cognitoIdentityPoolId: null,
-        accountId: null,
-        cognitoIdentityId: null,
-        caller: null,
-        sourceIp: '127.0.0.1',
-        principalOrgId: null,
-        accessKey: null,
-        cognitoAuthenticationType: null,
-        cognitoAuthenticationProvider: null,
-        userArn: null,
-        userAgent: 'test',
-        user: null,
-        apiKey: null,
-        apiKeyId: null,
-        clientCert: null
-      },
-      domainName: 'test.execute-api.us-east-1.amazonaws.com',
-      apiId: 'test'
-    }
-  };
-}
-
-// Helper function to create mock context
-function createMockContext(): Context {
-  return {
-    callbackWaitsForEmptyEventLoop: false,
-    functionName: 'test-authorizer',
-    functionVersion: '1',
-    invokedFunctionArn: `arn:aws:lambda:us-east-1:${MOCK_ACCOUNT_ID}:function:test-authorizer`,
-    memoryLimitInMB: '128',
-    awsRequestId: 'test-request-id',
-    logGroupName: '/aws/lambda/test-authorizer',
-    logStreamName: 'test-stream',
-    getRemainingTimeInMillis: () => 30000,
-    done: () => {},
-    fail: () => {},
-    succeed: () => {}
-  };
-}
-
-// Helper function to create JWT token with specific timing
-function createJwtToken(issuedSecondsAgo: number, expiresInSeconds: number): string {
-  const currentTime = Math.floor(Date.now() / 1000);
-  const issuedAt = currentTime - issuedSecondsAgo;
-  const expiresAt = currentTime + expiresInSeconds;
-  
-  const payload = {
-    sub: 'admin' as const,
-    iat: issuedAt,
-    exp: expiresAt
-  };
-  
-  return jwt.sign(payload, TEST_JWT_SECRET);
-}
 
 /**
  * Property 7: JWT Token Expiration
@@ -129,7 +42,7 @@ describe('Property 7: JWT Token Expiration', () => {
           const expiredToken = createJwtToken(secondsAgo, -1800); // Expires 30 minutes ago
           
           // Create mock event with expired token
-          const event = createMockEvent(expiredToken, methodArn);
+          const event = createMockAuthorizerEvent(expiredToken, methodArn);
           const context = createMockContext();
           
           // Call the authorizer
@@ -154,7 +67,7 @@ describe('Property 7: JWT Token Expiration', () => {
           const validToken = createJwtToken(secondsAgo, 1800);
           
           // Create mock event with valid token
-          const event = createMockEvent(validToken, methodArn);
+          const event = createMockAuthorizerEvent(validToken, methodArn);
           const context = createMockContext();
           
           // Call the authorizer

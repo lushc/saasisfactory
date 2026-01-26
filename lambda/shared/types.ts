@@ -28,5 +28,25 @@ export interface AuthorizerResponse {
 export interface ErrorResponse {
   error: string;
   message: string;
-  details?: any;
+  details?: unknown;
+  timestamp: string;
+}
+
+export interface ServerTask {
+  taskArn?: string;
+  lastStatus?: string;
+  publicIp?: string;
+}
+
+export interface ServerStartResult {
+  task: ServerTask;
+  adminToken: string;
+  publicIp: string;
+}
+
+export interface ApiErrorResponse {
+  error: string;
+  message: string;
+  details?: unknown;
+  timestamp: string;
 }

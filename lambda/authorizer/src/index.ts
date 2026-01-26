@@ -1,7 +1,9 @@
 import { APIGatewayRequestAuthorizerEvent, APIGatewayAuthorizerResult, Context } from 'aws-lambda';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import jwt from 'jsonwebtoken';
-import { JWTPayload } from './types';
+import { JWTPayload } from '../../shared/types';
+import { config } from '../../shared/config';
+import { AuthenticationError, SecretNotFoundError } from '../../shared/errors';
 
 const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION });
 
@@ -56,7 +58,7 @@ export const handler = async (
 
     // Check if token is within 1-hour limit from issuance
     const tokenAge = currentTime - decoded.iat;
-    if (tokenAge > 3600) { // 1 hour = 3600 seconds
+    if (tokenAge > config.jwt.maxAge) {
       console.log('Token is older than 1 hour');
       return generatePolicy('user', 'Deny', event.methodArn);
     }
@@ -92,20 +94,21 @@ export const handler = async (
  * Retrieve JWT secret from AWS Secrets Manager
  */
 async function getJWTSecret(): Promise<string> {
-  const secretName = 'satisfactory-jwt-secret';
-  
   try {
-    const command = new GetSecretValueCommand({ SecretId: secretName });
+    const command = new GetSecretValueCommand({ SecretId: config.secrets.jwtSecret });
     const response = await secretsClient.send(command);
     
     if (!response.SecretString) {
-      throw new Error('JWT secret not found in Secrets Manager');
+      throw new SecretNotFoundError(config.secrets.jwtSecret);
     }
     
     return response.SecretString;
   } catch (error) {
+    if (error instanceof SecretNotFoundError) {
+      throw error;
+    }
     console.error('Failed to retrieve JWT secret:', error);
-    throw new Error('Unable to retrieve JWT secret');
+    throw new SecretNotFoundError(config.secrets.jwtSecret);
   }
 }
 

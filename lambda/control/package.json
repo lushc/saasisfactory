@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-ecs": "^3.0.0",
+    "@aws-sdk/client-ec2": "^3.0.0",
     "@aws-sdk/client-secrets-manager": "^3.0.0",
     "@aws-sdk/client-eventbridge": "^3.0.0",
     "axios": "^1.0.0",

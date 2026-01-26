@@ -1,4 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { Task } from '@aws-sdk/client-ecs';
 import jwt from 'jsonwebtoken';
 import { 
   LoginRequest, 
@@ -11,6 +12,15 @@ import {
   SetClientPasswordResponse
 } from './types';
 import { ErrorResponse } from '../../shared/types';
+import { config } from '../../shared/config';
+import { 
+  SatisfactoryServerError,
+  ServerNotRunningError,
+  AuthenticationError,
+  ValidationError,
+  ServerStartFailedError,
+  ServerStopFailedError
+} from '../../shared/errors';
 import { 
   getSecret, 
   putSecret, 
@@ -20,13 +30,17 @@ import {
   waitForTaskRunning, 
   generateSecurePassword, 
   createMonitorRule, 
-  deleteMonitorRule 
+  deleteMonitorRule,
+  getRunningTask,
+  ensureValidApiToken,
+  waitForServerReady,
+  claimOrLoginToServer
 } from './aws-utils';
 import { SatisfactoryApiClient } from './satisfactory-api';
 
-const CLUSTER_NAME = process.env.CLUSTER_NAME || 'satisfactory-cluster';
-const SERVICE_NAME = process.env.SERVICE_NAME || 'satisfactory-service';
-const MONITOR_LAMBDA_ARN = process.env.MONITOR_LAMBDA_ARN || '';
+const CLUSTER_NAME = config.aws.clusterName;
+const SERVICE_NAME = config.aws.serviceName;
+const MONITOR_LAMBDA_ARN = config.aws.monitorLambdaArn;
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -51,11 +65,16 @@ export const handler = async (
     } else if (method === 'POST' && path === '/server/client-password') {
       return await handleSetClientPassword(event);
     } else {
-      return createErrorResponse(404, 'Not Found', 'Endpoint not found');
+      return createErrorResponse(404, 'NOT_FOUND', 'Endpoint not found');
     }
   } catch (error) {
     console.error('Unhandled error:', error);
-    return createErrorResponse(500, 'Internal Server Error', 'An unexpected error occurred');
+    
+    if (error instanceof SatisfactoryServerError) {
+      return createErrorResponse(error.statusCode, error.code, error.message);
+    }
+    
+    return createErrorResponse(500, 'INTERNAL_ERROR', 'An unexpected error occurred');
   }
 };
 
@@ -65,25 +84,25 @@ export const handler = async (
 async function handleLogin(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
     if (!event.body) {
-      return createErrorResponse(400, 'Bad Request', 'Request body is required');
+      throw new ValidationError('Request body is required');
     }
 
     const request: LoginRequest = JSON.parse(event.body);
     
     if (!request.password) {
-      return createErrorResponse(400, 'Bad Request', 'Password is required');
+      throw new ValidationError('Password is required');
     }
 
     // Get admin password from Secrets Manager
-    const storedPassword = await getSecret('satisfactory-admin-password');
+    const storedPassword = await getSecret(config.secrets.adminPassword);
     
     // Validate password
     if (request.password !== storedPassword) {
-      return createErrorResponse(401, 'Unauthorized', 'Invalid password');
+      throw new AuthenticationError('Invalid password');
     }
 
     // Get JWT secret key
-    const jwtSecret = await getSecret('satisfactory-jwt-secret');
+    const jwtSecret = await getSecret(config.secrets.jwtSecret);
     
     // Generate JWT token with 1-hour expiration
     const now = Math.floor(Date.now() / 1000);
@@ -91,29 +110,25 @@ async function handleLogin(event: APIGatewayProxyEvent): Promise<APIGatewayProxy
       {
         sub: 'admin',
         iat: now,
-        exp: now + 3600 // 1 hour
+        exp: now + config.jwt.expirationTime
       },
       jwtSecret
     );
 
     const response: LoginResponse = {
       token,
-      expiresIn: 3600
+      expiresIn: config.jwt.expirationTime
     };
 
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
-      },
-      body: JSON.stringify(response)
-    };
+    return createSuccessResponse(response);
   } catch (error) {
     console.error('Login error:', error);
-    return createErrorResponse(500, 'Internal Server Error', 'Authentication failed');
+    
+    if (error instanceof SatisfactoryServerError) {
+      return createErrorResponse(error.statusCode, error.code, error.message);
+    }
+    
+    return createErrorResponse(500, 'AUTHENTICATION_FAILED', 'Authentication failed');
   }
 }
 
@@ -127,96 +142,30 @@ async function handleServerStart(event: APIGatewayProxyEvent): Promise<APIGatewa
     // Update ECS service desired count to 1
     await updateServiceDesiredCount(CLUSTER_NAME, SERVICE_NAME, 1);
     
-    // Get running tasks to find the new task
-    let tasks = await getServiceTasks(CLUSTER_NAME, SERVICE_NAME);
-    let runningTask = tasks.find(task => task.lastStatus === 'RUNNING');
-    
-    if (!runningTask) {
-      // Wait for task to reach RUNNING state
-      console.log('Waiting for task to start...');
-      const pendingTask = tasks.find(task => task.lastStatus === 'PENDING' || task.lastStatus === 'PROVISIONING');
-      
-      if (pendingTask && pendingTask.taskArn) {
-        runningTask = await waitForTaskRunning(CLUSTER_NAME, pendingTask.taskArn);
-      } else {
-        // Wait a bit and check again
-        await new Promise(resolve => setTimeout(resolve, 10000));
-        tasks = await getServiceTasks(CLUSTER_NAME, SERVICE_NAME);
-        runningTask = tasks.find(task => task.lastStatus === 'RUNNING');
-        
-        if (!runningTask) {
-          return createErrorResponse(500, 'Server Start Failed', 'Task failed to start');
-        }
-      }
-    }
+    // Wait for task to start and get running task
+    const runningTask = await waitForRunningTask();
     
     // Get task public IP
-    const publicIp = getTaskPublicIp(runningTask);
+    const publicIp = await getTaskPublicIp(runningTask);
     if (!publicIp) {
-      return createErrorResponse(500, 'Server Start Failed', 'Could not determine server IP address');
+      throw new ServerStartFailedError('Could not determine server IP address');
     }
     
     console.log(`Server running at IP: ${publicIp}`);
     
     // Wait for Satisfactory Server API to become accessible
     const apiClient = new SatisfactoryApiClient(publicIp);
-    let serverReady = false;
-    let attempts = 0;
-    const maxAttempts = 30; // 5 minutes with 10-second intervals
+    await waitForServerReady(apiClient);
     
-    while (!serverReady && attempts < maxAttempts) {
-      try {
-        console.log(`Checking server API readiness (attempt ${attempts + 1}/${maxAttempts})...`);
-        await apiClient.passwordlessLogin();
-        serverReady = true;
-        console.log('Server API is ready');
-      } catch (error) {
-        attempts++;
-        if (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
-        }
-      }
-    }
-    
-    if (!serverReady) {
-      return createErrorResponse(500, 'Server Start Failed', 'Server API did not become accessible within timeout');
-    }
-    
-    // Check if server is claimed by trying to get existing admin password
-    let adminPassword: string;
-    let adminToken: string;
-    
-    try {
-      adminPassword = await getSecret('satisfactory-server-admin-password');
-      console.log('Server already claimed, logging in with existing password');
-      
-      // Server is already claimed, use password login
-      adminToken = await apiClient.passwordLogin(adminPassword);
-    } catch (error) {
-      console.log('Server not claimed yet, claiming server...');
-      
-      // Server is unclaimed, claim it
-      // Generate secure 64-character admin password
-      adminPassword = generateSecurePassword(64);
-      
-      // Get InitialAdmin token
-      const initialAdminToken = await apiClient.passwordlessLogin();
-      
-      // Claim server with admin password
-      adminToken = await apiClient.claimServer(initialAdminToken, adminPassword);
-      
-      // Store admin password in Secrets Manager
-      await putSecret('satisfactory-server-admin-password', adminPassword);
-      console.log('Server claimed successfully');
-    }
+    // Claim server or login with existing credentials
+    const { adminToken } = await claimOrLoginToServer(apiClient);
     
     // Store API token in Secrets Manager
-    await putSecret('satisfactory-api-token', adminToken);
+    await putSecret(config.secrets.apiToken, adminToken);
     
     // Create EventBridge rule for Monitor Lambda
-    const ruleName = 'satisfactory-monitor-rule';
     try {
-      await createMonitorRule(ruleName, MONITOR_LAMBDA_ARN);
+      await createMonitorRule(config.monitor.ruleName, MONITOR_LAMBDA_ARN);
       console.log('Monitor rule created');
     } catch (error) {
       console.warn('Failed to create monitor rule:', error);
@@ -229,20 +178,46 @@ async function handleServerStart(event: APIGatewayProxyEvent): Promise<APIGatewa
       publicIp
     };
     
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
-      },
-      body: JSON.stringify(response)
-    };
+    return createSuccessResponse(response);
   } catch (error) {
     console.error('Server start error:', error);
-    return createErrorResponse(500, 'Server Start Failed', 'Failed to start server');
+    
+    if (error instanceof SatisfactoryServerError) {
+      return createErrorResponse(error.statusCode, error.code, error.message);
+    }
+    
+    return createErrorResponse(500, 'SERVER_START_FAILED', 'Failed to start server');
   }
+}
+
+/**
+ * Wait for a task to reach RUNNING state
+ */
+async function waitForRunningTask(): Promise<Task> {
+  // Get running tasks to find the new task
+  let tasks = await getServiceTasks(CLUSTER_NAME, SERVICE_NAME);
+  let runningTask = tasks.find(task => task.lastStatus === 'RUNNING');
+  
+  if (!runningTask) {
+    // Wait for task to reach RUNNING state
+    console.log('Waiting for task to start...');
+    const pendingTask = tasks.find(task => task.lastStatus === 'PENDING' || task.lastStatus === 'PROVISIONING');
+    
+    if (pendingTask && pendingTask.taskArn) {
+      runningTask = await waitForTaskRunning(CLUSTER_NAME, pendingTask.taskArn);
+    } else {
+      // Wait a bit and check again
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      tasks = await getServiceTasks(CLUSTER_NAME, SERVICE_NAME);
+      runningTask = tasks.find(task => task.lastStatus === 'RUNNING');
+      
+      if (!runningTask) {
+        throw new ServerStartFailedError('Task failed to start');
+      }
+    }
+  }
+  
+  return runningTask;
 }
 
 /**
@@ -252,59 +227,23 @@ async function handleServerStop(event: APIGatewayProxyEvent): Promise<APIGateway
   try {
     console.log('Stopping server...');
     
-    // Get current tasks to find the running server
-    const tasks = await getServiceTasks(CLUSTER_NAME, SERVICE_NAME);
-    const runningTask = tasks.find(task => task.lastStatus === 'RUNNING');
+    // Get current running task
+    const runningTask = await getRunningTask();
     
     if (!runningTask) {
-      console.log('No running server found');
-      return createErrorResponse(400, 'Bad Request', 'Server is not currently running');
+      throw new ServerNotRunningError();
     }
     
-    // Get task public IP
-    const publicIp = getTaskPublicIp(runningTask);
-    if (!publicIp) {
-      console.warn('Could not determine server IP, proceeding with ECS stop only');
-    } else {
-      try {
-        // Retrieve Satisfactory Server API token from Secrets Manager
-        let apiToken = await getSecret('satisfactory-api-token');
-        const apiClient = new SatisfactoryApiClient(publicIp);
-        
-        // Verify token with VerifyAuthenticationToken
-        const isTokenValid = await apiClient.verifyAuthenticationToken(apiToken);
-        
-        if (!isTokenValid) {
-          console.log('API token invalid, regenerating...');
-          // Token is invalid, regenerate via PasswordLogin
-          const adminPassword = await getSecret('satisfactory-server-admin-password');
-          apiToken = await apiClient.passwordLogin(adminPassword);
-          
-          // Update token in Secrets Manager
-          await putSecret('satisfactory-api-token', apiToken);
-        }
-        
-        // Call Shutdown API to save game
-        console.log('Calling Satisfactory Server shutdown API...');
-        await apiClient.shutdown(apiToken);
-        console.log('Shutdown API called successfully');
-        
-        // Wait a moment for the shutdown to process
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      } catch (error) {
-        console.warn('Failed to call Satisfactory Server shutdown API:', error);
-        // Continue with ECS stop even if API call fails
-      }
-    }
+    // Attempt graceful shutdown via API
+    await attemptGracefulShutdown(runningTask);
     
     // Update ECS service desired count to 0
     console.log('Updating ECS service desired count to 0...');
     await updateServiceDesiredCount(CLUSTER_NAME, SERVICE_NAME, 0);
     
     // Delete EventBridge rule for Monitor Lambda
-    const ruleName = 'satisfactory-monitor-rule';
     try {
-      await deleteMonitorRule(ruleName);
+      await deleteMonitorRule(config.monitor.ruleName);
       console.log('Monitor rule deleted');
     } catch (error) {
       console.warn('Failed to delete monitor rule:', error);
@@ -315,19 +254,42 @@ async function handleServerStop(event: APIGatewayProxyEvent): Promise<APIGateway
       status: 'stopping'
     };
     
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
-      },
-      body: JSON.stringify(response)
-    };
+    return createSuccessResponse(response);
   } catch (error) {
     console.error('Server stop error:', error);
-    return createErrorResponse(500, 'Server Stop Failed', 'Failed to stop server');
+    
+    if (error instanceof SatisfactoryServerError) {
+      return createErrorResponse(error.statusCode, error.code, error.message);
+    }
+    
+    return createErrorResponse(500, 'SERVER_STOP_FAILED', 'Failed to stop server');
+  }
+}
+
+/**
+ * Attempt graceful shutdown via Satisfactory Server API
+ */
+async function attemptGracefulShutdown(runningTask: Task): Promise<void> {
+  const publicIp = await getTaskPublicIp(runningTask);
+  if (!publicIp) {
+    console.warn('Could not determine server IP, proceeding with ECS stop only');
+    return;
+  }
+
+  try {
+    const apiClient = new SatisfactoryApiClient(publicIp);
+    const apiToken = await ensureValidApiToken(apiClient);
+    
+    // Call Shutdown API to save game
+    console.log('Calling Satisfactory Server shutdown API...');
+    await apiClient.shutdown(apiToken);
+    console.log('Shutdown API called successfully');
+    
+    // Wait a moment for the shutdown to process
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  } catch (error) {
+    console.warn('Failed to call Satisfactory Server shutdown API:', error);
+    // Continue with ECS stop even if API call fails
   }
 }
 
@@ -351,32 +313,15 @@ async function handleServerStatus(event: APIGatewayProxyEvent): Promise<APIGatew
     
     if (runningTask) {
       serverState = 'running';
-      publicIp = getTaskPublicIp(runningTask);
+      publicIp = await getTaskPublicIp(runningTask);
       
-      // If running, retrieve API token and verify, then get game state
+      // If running, get detailed server information
       if (publicIp) {
         try {
-          let apiToken = await getSecret('satisfactory-api-token');
-          const apiClient = new SatisfactoryApiClient(publicIp);
-          
-          // Verify token with VerifyAuthenticationToken
-          const isTokenValid = await apiClient.verifyAuthenticationToken(apiToken);
-          
-          if (!isTokenValid) {
-            console.log('API token invalid, regenerating...');
-            // Token is invalid, regenerate via PasswordLogin
-            const adminPassword = await getSecret('satisfactory-server-admin-password');
-            apiToken = await apiClient.passwordLogin(adminPassword);
-            
-            // Update token in Secrets Manager
-            await putSecret('satisfactory-api-token', apiToken);
-          }
-          
-          // Call QueryServerState to get player count and game state
-          const serverStateData = await apiClient.queryServerState(apiToken);
-          playerCount = serverStateData.serverGameState.numConnectedPlayers;
-          serverName = serverStateData.serverGameState.activeSessionName || 'Satisfactory On-Demand Server';
-          gamePhase = serverStateData.serverGameState.gamePhase;
+          const gameState = await getServerGameState(publicIp);
+          playerCount = gameState.playerCount;
+          serverName = gameState.serverName;
+          gamePhase = gameState.gamePhase;
           
           console.log(`Server status: ${playerCount} players, phase: ${gamePhase}`);
         } catch (error) {
@@ -389,37 +334,50 @@ async function handleServerStatus(event: APIGatewayProxyEvent): Promise<APIGatew
     } else {
       // Check if we're in the process of stopping
       const stoppingTask = tasks.find(task => task.lastStatus === 'STOPPING');
-      if (stoppingTask) {
-        serverState = 'stopping';
-      } else {
-        serverState = 'offline';
-      }
+      serverState = stoppingTask ? 'stopping' : 'offline';
     }
     
     const response: StatusResponse = {
       serverState,
       publicIp,
-      port: 7777,
+      port: config.server.port,
       playerCount,
       serverName,
       gamePhase,
       lastUpdated: new Date().toISOString()
     };
     
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
-      },
-      body: JSON.stringify(response)
-    };
+    return createSuccessResponse(response);
   } catch (error) {
     console.error('Server status error:', error);
-    return createErrorResponse(500, 'Server Status Failed', 'Failed to get server status');
+    
+    if (error instanceof SatisfactoryServerError) {
+      return createErrorResponse(error.statusCode, error.code, error.message);
+    }
+    
+    return createErrorResponse(500, 'SERVER_STATUS_FAILED', 'Failed to get server status');
   }
+}
+
+/**
+ * Get server game state information
+ */
+async function getServerGameState(publicIp: string): Promise<{
+  playerCount: number;
+  serverName: string;
+  gamePhase: string;
+}> {
+  const apiClient = new SatisfactoryApiClient(publicIp);
+  const apiToken = await ensureValidApiToken(apiClient);
+  
+  // Call QueryServerState to get player count and game state
+  const serverStateData = await apiClient.queryServerState(apiToken);
+  
+  return {
+    playerCount: serverStateData.serverGameState.numConnectedPlayers,
+    serverName: serverStateData.serverGameState.activeSessionName || 'Satisfactory On-Demand Server',
+    gamePhase: serverStateData.serverGameState.gamePhase
+  };
 }
 
 /**
@@ -429,40 +387,25 @@ async function handleGetClientPassword(event: APIGatewayProxyEvent): Promise<API
   try {
     console.log('Getting client password...');
     
-    // First verify that the server is running and we can access the API
-    const tasks = await getServiceTasks(CLUSTER_NAME, SERVICE_NAME);
-    const runningTask = tasks.find(task => task.lastStatus === 'RUNNING');
-    
+    // Verify server is running
+    const runningTask = await getRunningTask();
     if (!runningTask) {
-      return createErrorResponse(400, 'Bad Request', 'Server is not currently running');
+      throw new ServerNotRunningError();
     }
     
-    const publicIp = getTaskPublicIp(runningTask);
+    const publicIp = await getTaskPublicIp(runningTask);
     if (!publicIp) {
-      return createErrorResponse(500, 'Server Error', 'Could not determine server IP address');
+      throw new ServerStartFailedError('Could not determine server IP address');
     }
     
-    // Retrieve Satisfactory Server API token from Secrets Manager
-    let apiToken = await getSecret('satisfactory-api-token');
+    // Ensure API token is valid
     const apiClient = new SatisfactoryApiClient(publicIp);
-    
-    // Verify token with VerifyAuthenticationToken
-    const isTokenValid = await apiClient.verifyAuthenticationToken(apiToken);
-    
-    if (!isTokenValid) {
-      console.log('API token invalid, regenerating...');
-      // Token is invalid, regenerate via PasswordLogin
-      const adminPassword = await getSecret('satisfactory-server-admin-password');
-      apiToken = await apiClient.passwordLogin(adminPassword);
-      
-      // Update token in Secrets Manager
-      await putSecret('satisfactory-api-token', apiToken);
-    }
+    await ensureValidApiToken(apiClient);
     
     // Retrieve client password from Secrets Manager
     let clientPassword: string | null = null;
     try {
-      clientPassword = await getSecret('satisfactory-client-password');
+      clientPassword = await getSecret(config.secrets.clientPassword);
       // If the password is empty string, treat it as null (no password protection)
       if (clientPassword === '') {
         clientPassword = null;
@@ -477,19 +420,15 @@ async function handleGetClientPassword(event: APIGatewayProxyEvent): Promise<API
       password: clientPassword
     };
     
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
-      },
-      body: JSON.stringify(response)
-    };
+    return createSuccessResponse(response);
   } catch (error) {
     console.error('Get client password error:', error);
-    return createErrorResponse(500, 'Get Client Password Failed', 'Failed to retrieve client password');
+    
+    if (error instanceof SatisfactoryServerError) {
+      return createErrorResponse(error.statusCode, error.code, error.message);
+    }
+    
+    return createErrorResponse(500, 'GET_CLIENT_PASSWORD_FAILED', 'Failed to retrieve client password');
   }
 }
 
@@ -501,51 +440,36 @@ async function handleSetClientPassword(event: APIGatewayProxyEvent): Promise<API
     console.log('Setting client password...');
     
     if (!event.body) {
-      return createErrorResponse(400, 'Bad Request', 'Request body is required');
+      throw new ValidationError('Request body is required');
     }
     
     const request: SetClientPasswordRequest = JSON.parse(event.body);
     
     if (typeof request.password !== 'string') {
-      return createErrorResponse(400, 'Bad Request', 'Password must be a string');
+      throw new ValidationError('Password must be a string');
     }
     
-    // First verify that the server is running and we can access the API
-    const tasks = await getServiceTasks(CLUSTER_NAME, SERVICE_NAME);
-    const runningTask = tasks.find(task => task.lastStatus === 'RUNNING');
-    
+    // Verify server is running
+    const runningTask = await getRunningTask();
     if (!runningTask) {
-      return createErrorResponse(400, 'Bad Request', 'Server is not currently running');
+      throw new ServerNotRunningError();
     }
     
-    const publicIp = getTaskPublicIp(runningTask);
+    const publicIp = await getTaskPublicIp(runningTask);
     if (!publicIp) {
-      return createErrorResponse(500, 'Server Error', 'Could not determine server IP address');
+      throw new ServerStartFailedError('Could not determine server IP address');
     }
     
-    // Retrieve Satisfactory Server API token from Secrets Manager
-    let apiToken = await getSecret('satisfactory-api-token');
+    // Update password via API and Secrets Manager
     const apiClient = new SatisfactoryApiClient(publicIp);
-    
-    // Verify token with VerifyAuthenticationToken
-    const isTokenValid = await apiClient.verifyAuthenticationToken(apiToken);
-    
-    if (!isTokenValid) {
-      console.log('API token invalid, regenerating...');
-      // Token is invalid, regenerate via PasswordLogin
-      const adminPassword = await getSecret('satisfactory-server-admin-password');
-      apiToken = await apiClient.passwordLogin(adminPassword);
-      
-      // Update token in Secrets Manager
-      await putSecret('satisfactory-api-token', apiToken);
-    }
+    const apiToken = await ensureValidApiToken(apiClient);
     
     // Call SetClientPassword API
     await apiClient.setClientPassword(apiToken, request.password);
     console.log('Client password updated on server');
     
     // Update password in Secrets Manager
-    await putSecret('satisfactory-client-password', request.password);
+    await putSecret(config.secrets.clientPassword, request.password);
     console.log('Client password updated in Secrets Manager');
     
     const response: SetClientPasswordResponse = {
@@ -553,20 +477,32 @@ async function handleSetClientPassword(event: APIGatewayProxyEvent): Promise<API
       message: request.password === '' ? 'Password protection removed' : 'Password updated successfully'
     };
     
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
-      },
-      body: JSON.stringify(response)
-    };
+    return createSuccessResponse(response);
   } catch (error) {
     console.error('Set client password error:', error);
-    return createErrorResponse(500, 'Set Client Password Failed', 'Failed to update client password');
+    
+    if (error instanceof SatisfactoryServerError) {
+      return createErrorResponse(error.statusCode, error.code, error.message);
+    }
+    
+    return createErrorResponse(500, 'SET_CLIENT_PASSWORD_FAILED', 'Failed to update client password');
   }
+}
+
+/**
+ * Create standardized success response
+ */
+function createSuccessResponse<T>(data: T): APIGatewayProxyResult {
+  return {
+    statusCode: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+    },
+    body: JSON.stringify(data)
+  };
 }
 
 /**
@@ -576,12 +512,13 @@ function createErrorResponse(
   statusCode: number, 
   error: string, 
   message: string, 
-  details?: any
+  details?: unknown
 ): APIGatewayProxyResult {
   const errorResponse: ErrorResponse = {
     error,
     message,
-    details
+    details,
+    timestamp: new Date().toISOString()
   };
 
   return {
