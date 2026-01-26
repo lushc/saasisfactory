@@ -72,7 +72,7 @@
   - Set up attributes for timer state
   - _Requirements: 4.1, 4.2, 4.4_
 
-- [-] 6. Implement Lambda authorizer function
+- [x] 6. Implement Lambda authorizer function
 - [x] 6.1 Create Lambda authorizer function code
   - Set up Node.js 24.x project with TypeScript
   - Implement JWT token extraction from Authorization header
@@ -81,18 +81,18 @@
   - Return authorization decision
   - _Requirements: 8.2, 8.4, 11.6_
 
-- [ ] 6.2 Write property test for JWT token expiration
+- [x] 6.2 Write property test for JWT token expiration
   - **Property 7: JWT Token Expiration**
   - **Validates: Requirements 8.4**
 
-- [ ] 6.3 Create CloudFormation resource for authorizer Lambda
+- [x] 6.3 Create CloudFormation resource for authorizer Lambda
   - Define Lambda function resource
   - Set up IAM role with Secrets Manager read permissions
   - Configure environment variables
   - Add CloudWatch Logs permissions
   - _Requirements: 1.2_
 
-- [ ] 6.4 Configure API Gateway authorizer
+- [x] 6.4 Configure API Gateway authorizer
   - Create Lambda authorizer in API Gateway
   - Set authorization header as identity source
   - Configure caching (optional)

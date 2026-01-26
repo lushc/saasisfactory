@@ -537,6 +537,164 @@ Resources:
           Value: SatisfactoryOnDemandServer
         - Key: Purpose
           Value: 'ECS service for Satisfactory server - starts with 0 desired count'
+
+  # Lambda Functions for Backend API
+
+  # IAM Role for Authorizer Lambda Function
+  AuthorizerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-authorizer-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref JWTSecretSecret
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub '${AuthorizerLambdaLogGroup.Arn}:*'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-authorizer-lambda-role'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'IAM role for Authorizer Lambda with Secrets Manager read permissions'
+
+  # CloudWatch Log Group for Authorizer Lambda
+  AuthorizerLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-authorizer'
+      RetentionInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-authorizer-lambda-log-group'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  # Authorizer Lambda Function
+  AuthorizerLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-authorizer'
+      Runtime: nodejs24.x
+      Handler: index.handler
+      Role: !GetAtt AuthorizerLambdaRole.Arn
+      Code:
+        ZipFile: |
+          // Placeholder code - will be replaced during deployment
+          exports.handler = async (event) => {
+            console.log('Authorizer Lambda placeholder - replace with actual code');
+            return {
+              principalId: 'user',
+              policyDocument: {
+                Version: '2012-10-17',
+                Statement: [{
+                  Action: 'execute-api:Invoke',
+                  Effect: 'Deny',
+                  Resource: event.methodArn
+                }]
+              }
+            };
+          };
+      Description: 'JWT token authorizer for Satisfactory Server API Gateway'
+      Environment:
+        Variables:
+          AWS_REGION: !Ref 'AWS::Region'
+          JWT_SECRET_NAME: !Ref JWTSecretSecret
+      Timeout: 30
+      MemorySize: 128
+      LoggingConfig:
+        LogGroup: !Ref AuthorizerLambdaLogGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-authorizer-lambda'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'JWT token validation for API Gateway requests'
+
+  # API Gateway HTTP API
+  SatisfactoryAPI:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${AWS::StackName}-api'
+      Description: 'HTTP API for Satisfactory Server management'
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowCredentials: false
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowOrigins:
+          - '*'
+        MaxAge: 86400
+      Tags:
+        Name: !Sub '${AWS::StackName}-api-gateway'
+        Project: SatisfactoryOnDemandServer
+        Purpose: 'HTTP API for server management and authentication'
+
+  # API Gateway Stage
+  SatisfactoryAPIStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      StageName: '$default'
+      Description: 'Default stage for Satisfactory Server API'
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 100
+        ThrottlingRateLimit: 50
+      Tags:
+        Name: !Sub '${AWS::StackName}-api-stage'
+        Project: SatisfactoryOnDemandServer
+
+  # Lambda Permission for API Gateway to invoke Authorizer
+  AuthorizerLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AuthorizerLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub '${SatisfactoryAPI}/authorizers/*'
+
+  # API Gateway Lambda Authorizer
+  SatisfactoryAPIAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref SatisfactoryAPI
+      Name: !Sub '${AWS::StackName}-jwt-authorizer'
+      AuthorizerType: REQUEST
+      AuthorizerUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerLambdaFunction.Arn}/invocations'
+      IdentitySource:
+        - '$request.header.Authorization'
+      AuthorizerResultTtlInSeconds: 300
+      EnableSimpleResponses: false
+      AuthorizerPayloadFormatVersion: '1.0'
     
 # Outputs section - Export key resource identifiers for reference
 Outputs:
@@ -712,3 +870,41 @@ Outputs:
     Value: !GetAtt ECSTaskRole.Arn
     Export:
       Name: !Sub '${AWS::StackName}-ECSTaskRole-Arn'
+
+  # Lambda Function Outputs
+  AuthorizerLambdaFunctionName:
+    Description: 'Name of the Authorizer Lambda function for JWT token validation'
+    Value: !Ref AuthorizerLambdaFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthorizerLambdaFunction-Name'
+
+  AuthorizerLambdaFunctionArn:
+    Description: 'ARN of the Authorizer Lambda function for JWT token validation'
+    Value: !GetAtt AuthorizerLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthorizerLambdaFunction-Arn'
+
+  AuthorizerLambdaRoleArn:
+    Description: 'ARN of the IAM role for Authorizer Lambda function'
+    Value: !GetAtt AuthorizerLambdaRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthorizerLambdaRole-Arn'
+
+  # API Gateway Outputs
+  SatisfactoryAPIId:
+    Description: 'ID of the API Gateway HTTP API for Satisfactory Server management'
+    Value: !Ref SatisfactoryAPI
+    Export:
+      Name: !Sub '${AWS::StackName}-SatisfactoryAPI-ID'
+
+  SatisfactoryAPIEndpoint:
+    Description: 'Endpoint URL of the API Gateway HTTP API'
+    Value: !Sub 'https://${SatisfactoryAPI}.execute-api.${AWS::Region}.amazonaws.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-SatisfactoryAPI-Endpoint'
+
+  SatisfactoryAPIAuthorizerId:
+    Description: 'ID of the API Gateway Lambda authorizer for JWT token validation'
+    Value: !Ref SatisfactoryAPIAuthorizer
+    Export:
+      Name: !Sub '${AWS::StackName}-SatisfactoryAPIAuthorizer-ID'

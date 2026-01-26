@@ -28,7 +28,7 @@ beforeEach(() => {
 function createMockEvent(token: string, methodArn: string): APIGatewayRequestAuthorizerEvent {
   return {
     type: 'REQUEST',
-    methodArn: `arn:aws:execute-api:us-east-1:123456789012:abcdef123/${methodArn}`,
+    methodArn: `arn:aws:execute-api:us-east-1:${MOCK_ACCOUNT_ID}:${MOCK_API_ID}/${methodArn}`,
     resource: '/test',
     path: '/test',
     httpMethod: 'GET',
@@ -47,7 +47,7 @@ function createMockEvent(token: string, methodArn: string): APIGatewayRequestAut
       extendedRequestId: 'test',
       requestTime: new Date().toISOString(),
       path: '/test',
-      accountId: '123456789012',
+      accountId: MOCK_ACCOUNT_ID,
       protocol: 'HTTP/1.1',
       stage: 'test',
       domainPrefix: 'test',
@@ -81,18 +81,33 @@ function createMockEvent(token: string, methodArn: string): APIGatewayRequestAut
 function createMockContext(): Context {
   return {
     callbackWaitsForEmptyEventLoop: false,
-    functionName: 'test',
+    functionName: 'test-authorizer',
     functionVersion: '1',
-    invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:test',
+    invokedFunctionArn: `arn:aws:lambda:us-east-1:${MOCK_ACCOUNT_ID}:function:test-authorizer`,
     memoryLimitInMB: '128',
-    awsRequestId: 'test',
-    logGroupName: '/aws/lambda/test',
-    logStreamName: 'test',
+    awsRequestId: 'test-request-id',
+    logGroupName: '/aws/lambda/test-authorizer',
+    logStreamName: 'test-stream',
     getRemainingTimeInMillis: () => 30000,
     done: () => {},
     fail: () => {},
     succeed: () => {}
   };
+}
+
+// Helper function to create JWT token with specific timing
+function createJwtToken(issuedSecondsAgo: number, expiresInSeconds: number): string {
+  const currentTime = Math.floor(Date.now() / 1000);
+  const issuedAt = currentTime - issuedSecondsAgo;
+  const expiresAt = currentTime + expiresInSeconds;
+  
+  const payload = {
+    sub: 'admin' as const,
+    iat: issuedAt,
+    exp: expiresAt
+  };
+  
+  return jwt.sign(payload, TEST_JWT_SECRET);
 }
 
 /**
@@ -110,18 +125,8 @@ describe('Property 7: JWT Token Expiration', () => {
         fc.integer({ min: 3601, max: 86400 }), // 1 hour + 1 second to 24 hours ago
         fc.string({ minLength: 1, maxLength: 50 }), // Random method ARN
         async (secondsAgo: number, methodArn: string) => {
-          // Create a token that expired in the past
-          const currentTime = Math.floor(Date.now() / 1000);
-          const issuedAt = currentTime - secondsAgo;
-          const expiresAt = issuedAt + 3600; // Token was valid for 1 hour from issuance
-          
-          const payload = {
-            sub: 'admin' as const,
-            iat: issuedAt,
-            exp: expiresAt
-          };
-          
-          const expiredToken = jwt.sign(payload, TEST_JWT_SECRET);
+          // Create a token that expired in the past (was valid for 1 hour from issuance)
+          const expiredToken = createJwtToken(secondsAgo, -1800); // Expires 30 minutes ago
           
           // Create mock event with expired token
           const event = createMockEvent(expiredToken, methodArn);
@@ -145,18 +150,8 @@ describe('Property 7: JWT Token Expiration', () => {
         fc.integer({ min: 0, max: 3599 }), // 0 seconds to 59 minutes 59 seconds
         fc.string({ minLength: 1, maxLength: 50 }), // Random method ARN
         async (secondsAgo: number, methodArn: string) => {
-          // Create a token that is still valid
-          const currentTime = Math.floor(Date.now() / 1000);
-          const issuedAt = currentTime - secondsAgo;
-          const expiresAt = currentTime + 1800; // Expires 30 minutes from now
-          
-          const payload = {
-            sub: 'admin' as const,
-            iat: issuedAt,
-            exp: expiresAt
-          };
-          
-          const validToken = jwt.sign(payload, TEST_JWT_SECRET);
+          // Create a token that is still valid (expires 30 minutes from now)
+          const validToken = createJwtToken(secondsAgo, 1800);
           
           // Create mock event with valid token
           const event = createMockEvent(validToken, methodArn);
