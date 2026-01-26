@@ -76,7 +76,98 @@ Before deploying this solution, ensure you have the following installed and conf
 
 3. **AWS CLI Configured** with credentials that have the above permissions
 
-## Deployment Instructions
+## Quick Start (Automated Deployment)
+
+For the fastest deployment experience, use our automated scripts:
+
+### Option 1: Automated Deployment (Recommended)
+
+```bash
+# 1. Validate your environment
+./scripts/validate-environment.sh
+
+# 2. Deploy the complete infrastructure
+./scripts/deploy.sh --email your-email@example.com
+
+# 3. When finished, clean up to stop all charges
+./scripts/cleanup.sh
+```
+
+**Deployment Scripts:**
+
+- **`scripts/validate-environment.sh`** - Checks prerequisites and AWS permissions
+- **`scripts/deploy.sh`** - Complete automated deployment with error handling
+- **`scripts/cleanup.sh`** - Safe infrastructure removal and cost cleanup
+
+**Deploy Script Options:**
+```bash
+./scripts/deploy.sh [OPTIONS]
+
+Options:
+  -e, --email EMAIL              Budget alert email address (required)
+  -s, --stack-name NAME          CloudFormation stack name (default: satisfactory-server)
+  -t, --timeout MINUTES         Shutdown timeout in minutes (default: 10)
+  -m, --memory MB                Server memory in MB (default: 8192)
+  -c, --cpu UNITS                Server CPU units (default: 1024)
+  -b, --budget AMOUNT            Monthly budget threshold in USD (default: 20)
+  -h, --help                     Show help message
+
+Examples:
+  ./scripts/deploy.sh --email user@example.com
+  ./scripts/deploy.sh --email user@example.com --timeout 15 --memory 16384
+```
+
+**Cleanup Script Options:**
+```bash
+./scripts/cleanup.sh [OPTIONS]
+
+Options:
+  -s, --stack-name NAME          CloudFormation stack name (default: satisfactory-server)
+  --delete-secrets               Also delete secrets (PERMANENT - cannot be undone)
+  -h, --help                     Show help message
+
+Examples:
+  ./scripts/cleanup.sh                    # Preserves secrets for redeployment
+  ./scripts/cleanup.sh --delete-secrets   # Complete permanent cleanup
+```
+
+**What the automated deployment does:**
+1. ✅ Validates environment and prerequisites
+2. ✅ Installs all Lambda and Admin Panel dependencies
+3. ✅ Builds TypeScript Lambda functions
+4. ✅ Deploys CloudFormation infrastructure
+5. ✅ Configures secrets and environment variables
+6. ✅ Builds and deploys Admin Panel to S3/CloudFront
+7. ✅ Provides complete deployment summary with URLs
+
+**Estimated deployment time:** 10-15 minutes
+
+---
+
+## Manual Deployment Instructions
+
+If you prefer manual control over each step, follow these detailed instructions:
+
+### Step 1: Clone and Prepare the Project
+
+```bash
+# Clone the repository (if not already done)
+git clone <repository-url>
+cd satisfactory-on-demand-server
+
+# Install dependencies for all Lambda functions
+cd lambda/authorizer && npm install && cd ../..
+cd lambda/control && npm install && cd ../..
+cd lambda/monitor && npm install && cd ../..
+
+# Install dependencies for Admin Panel
+cd admin-panel && npm install && cd ..
+```
+
+### Step 2: Build Lambda Functions
+
+```bash
+# Build all Lambda functions
 
 ### Step 1: Clone and Prepare the Project
 
