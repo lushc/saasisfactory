@@ -16,7 +16,7 @@ This solution enables cost-effective hosting of a Satisfactory dedicated server 
 ✅ **Authentication System**: JWT-based authentication with 1-hour token expiration  
 ✅ **Server Management API**: Complete REST API for server lifecycle operations  
 ✅ **Satisfactory Server Integration**: Full API integration for server claiming, monitoring, and control  
-🚧 **Monitor Lambda**: Auto-shutdown functionality (in progress)  
+✅ **Monitor Lambda**: Auto-shutdown functionality with DynamoDB timer state management  
 🚧 **Admin Panel**: React frontend (in progress)  
 🚧 **Deployment Scripts**: Automated deployment tooling (in progress)
 
@@ -37,7 +37,7 @@ The solution leverages:
 - **Lambda Functions**: Handle authentication, server lifecycle, and monitoring
   - **Authorizer Lambda**: Validates JWT tokens for API Gateway requests
   - **Control Lambda**: Manages server start/stop operations, status queries, and client password management
-  - **Monitor Lambda**: Tracks player activity and handles auto-shutdown (implementation in progress)
+  - **Monitor Lambda**: Tracks player activity and handles auto-shutdown with DynamoDB timer state management
 - **API Gateway HTTP API**: Exposes REST endpoints with Lambda authorizer integration
 - **Secrets Manager**: Securely stores admin passwords, JWT secrets, and Satisfactory Server API tokens
 - **DynamoDB**: Tracks shutdown timer state for auto-shutdown functionality
@@ -129,7 +129,16 @@ The backend provides a comprehensive REST API with the following endpoints:
 │   │   │   └── index.property.test.ts  # Property-based tests
 │   │   ├── package.json    # Dependencies (AWS SDK v3, axios, jsonwebtoken)
 │   │   └── tsconfig.json
-│   ├── monitor/            # Auto-shutdown monitoring (🚧 in progress)
+│   ├── monitor/            # Auto-shutdown monitoring (✅ implemented)
+│   │   ├── src/
+│   │   │   ├── index.ts           # Timer logic and player monitoring
+│   │   │   ├── aws-utils.ts       # AWS service integrations
+│   │   │   ├── dynamodb-utils.ts  # DynamoDB timer state management
+│   │   │   ├── satisfactory-api.ts # Satisfactory Server API client
+│   │   │   ├── types.ts           # Type definitions
+│   │   │   └── index.property.test.ts  # Property-based tests
+│   │   ├── package.json    # Dependencies (AWS SDK v3, axios)
+│   │   └── tsconfig.json
 │   └── shared/             # Shared utilities (✅ implemented)
 │       ├── config.ts       # Centralized configuration management
 │       ├── errors.ts       # Custom error types with HTTP status codes
@@ -168,16 +177,17 @@ The backend provides a comprehensive REST API with the following endpoints:
 - **CloudFormation Infrastructure**: Complete template with all AWS resources defined
 - **Authorizer Lambda**: JWT token validation with property-based tests
 - **Control Lambda**: Full server management API with comprehensive error handling
+- **Monitor Lambda**: Auto-shutdown functionality with DynamoDB timer state management and property-based tests
 - **Shared Utilities**: Configuration management, custom errors, and test helpers
 - **Satisfactory Server Integration**: Complete API client with automatic token management
+- **API Gateway**: HTTP API with routes, integrations, and Lambda authorizer configuration
 
 ### In Progress 🚧
-- **Monitor Lambda**: Auto-shutdown functionality based on player activity
 - **Admin Panel**: React frontend with Vite, Tailwind CSS, and TypeScript
+- **S3/CloudFront Setup**: Static website hosting for admin panel
 - **Deployment Scripts**: Automated CloudFormation deployment and secret management
 
 ### Pending 📋
-- **S3/CloudFront Setup**: Static website hosting for admin panel
 - **Cost Monitoring**: AWS Budgets integration
 - **End-to-End Testing**: Complete system integration tests
 
@@ -195,6 +205,7 @@ The backend provides a comprehensive REST API with the following endpoints:
 # Install dependencies for all Lambda functions
 cd lambda/authorizer && npm install
 cd lambda/control && npm install
+cd lambda/monitor && npm install
 
 # Run tests
 npm test                    # Unit tests
