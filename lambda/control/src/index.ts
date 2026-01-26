@@ -18,8 +18,7 @@ import {
   ServerNotRunningError,
   AuthenticationError,
   ValidationError,
-  ServerStartFailedError,
-  ServerStopFailedError
+  ServerStartFailedError
 } from '../../shared/errors';
 import { 
   getSecret, 
@@ -28,7 +27,6 @@ import {
   getServiceTasks, 
   getTaskPublicIp, 
   waitForTaskRunning, 
-  generateSecurePassword, 
   createMonitorRule, 
   deleteMonitorRule,
   getRunningTask,
@@ -88,16 +86,16 @@ export const handler = async (
       return await handleLogin(event);
     } else if (method === 'POST' && path === '/server/start') {
       await validateJwtToken(event);
-      return await handleServerStart(event);
+      return await handleServerStart();
     } else if (method === 'POST' && path === '/server/stop') {
       await validateJwtToken(event);
-      return await handleServerStop(event);
+      return await handleServerStop();
     } else if (method === 'GET' && path === '/server/status') {
       await validateJwtToken(event);
-      return await handleServerStatus(event);
+      return await handleServerStatus();
     } else if (method === 'GET' && path === '/server/client-password') {
       await validateJwtToken(event);
-      return await handleGetClientPassword(event);
+      return await handleGetClientPassword();
     } else if (method === 'POST' && path === '/server/client-password') {
       await validateJwtToken(event);
       return await handleSetClientPassword(event);
@@ -177,7 +175,7 @@ async function handleLogin(event: APIGatewayProxyEvent): Promise<APIGatewayProxy
 /**
  * Handle POST /server/start
  */
-async function handleServerStart(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+async function handleServerStart(): Promise<APIGatewayProxyResult> {
   try {
     console.log('Starting server...');
     
@@ -265,7 +263,7 @@ async function waitForRunningTask(): Promise<Task> {
 /**
  * Handle POST /server/stop
  */
-async function handleServerStop(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+async function handleServerStop(): Promise<APIGatewayProxyResult> {
   try {
     console.log('Stopping server...');
     
@@ -338,7 +336,7 @@ async function attemptGracefulShutdown(runningTask: Task): Promise<void> {
 /**
  * Handle GET /server/status
  */
-async function handleServerStatus(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+async function handleServerStatus(): Promise<APIGatewayProxyResult> {
   try {
     console.log('Getting server status...');
     
@@ -425,7 +423,7 @@ async function getServerGameState(publicIp: string): Promise<{
 /**
  * Handle GET /server/client-password
  */
-async function handleGetClientPassword(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+async function handleGetClientPassword(): Promise<APIGatewayProxyResult> {
   try {
     console.log('Getting client password...');
     
