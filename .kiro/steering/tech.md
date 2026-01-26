@@ -93,18 +93,86 @@ npm test -- --coverage
 
 ### Deployment
 ```bash
-# Deploy CloudFormation stack
+# Step 1: Build all Lambda functions
+cd lambda/authorizer && npm install && npm run build && cd ../..
+cd lambda/control && npm install && npm run build && cd ../..
+cd lambda/monitor && npm install && npm run build && cd ../..
+
+# Step 2: Deploy CloudFormation stack
 aws cloudformation create-stack \
   --stack-name satisfactory-server \
   --template-body file://cloudformation/main.yaml \
-  --parameters file://parameters.json \
+  --parameters \
+    ParameterKey=ShutdownTimeoutMinutes,ParameterValue=10 \
+    ParameterKey=ServerMemory,ParameterValue=8192 \
+    ParameterKey=ServerCPU,ParameterValue=1024 \
+    ParameterKey=BudgetAlertEmail,ParameterValue=your-email@example.com \
+    ParameterKey=MonthlyBudgetThreshold,ParameterValue=20 \
   --capabilities CAPABILITY_IAM
 
-# Run post-deployment script (generates secrets)
+# Step 3: Wait for stack creation and run post-deployment script
+aws cloudformation wait stack-create-complete --stack-name satisfactory-server
+chmod +x scripts/post-deploy.sh
 ./scripts/post-deploy.sh
 
-# Upload Admin Panel to S3
-aws s3 sync admin-panel/dist s3://<bucket-name>/
+# Step 4: Build and deploy Admin Panel
+cd admin-panel && npm install && npm run build
+S3_BUCKET=$(aws cloudformation describe-stacks --stack-name satisfactory-server --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
+aws s3 sync dist/ s3://$S3_BUCKET/
+
+# Step 5: Get Admin Panel URL
+aws cloudformation describe-stacks --stack-name satisfactory-server --query 'Stacks[0].Outputs[?OutputKey==`AdminPanelUrl`].OutputValue' --output text
+```
+
+### Post-Deployment Script Details
+
+The `scripts/post-deploy.sh` script handles:
+- **Secret Generation**: Creates secure 32-char admin password and 64-char JWT secret if not already set
+- **API Gateway URL Retrieval**: Extracts API URL from CloudFormation outputs
+- **Environment Configuration**: Creates `.env.local` file with VITE_API_URL for Admin Panel
+- **Idempotency**: Safe to run multiple times, preserves existing secrets
+- **Validation**: Checks AWS CLI configuration and CloudFormation stack status
+
+### Cost Monitoring Commands
+```bash
+# Check current month's costs
+aws ce get-cost-and-usage \
+  --time-period Start=2024-01-01,End=2024-01-31 \
+  --granularity MONTHLY \
+  --metrics BlendedCost \
+  --group-by Type=DIMENSION,Key=SERVICE
+
+# Monitor ECS-specific costs
+aws ce get-cost-and-usage \
+  --time-period Start=2024-01-01,End=2024-01-31 \
+  --granularity MONTHLY \
+  --metrics BlendedCost \
+  --filter '{"Dimensions":{"Key":"SERVICE","Values":["Amazon Elastic Container Service"]}}'
+
+# Check budget status
+aws budgets describe-budgets --account-id $(aws sts get-caller-identity --query Account --output text)
+```
+
+### Cleanup Commands
+```bash
+# Complete cleanup (stops all charges)
+# 1. Stop server
+curl -X POST "$API_URL/server/stop" -H "Authorization: Bearer $JWT_TOKEN"
+
+# 2. Empty S3 bucket
+S3_BUCKET=$(aws cloudformation describe-stacks --stack-name satisfactory-server --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
+aws s3 rm s3://$S3_BUCKET --recursive
+
+# 3. Delete CloudFormation stack
+aws cloudformation delete-stack --stack-name satisfactory-server
+aws cloudformation wait stack-delete-complete --stack-name satisfactory-server
+
+# 4. Delete secrets (optional, permanent)
+aws secretsmanager delete-secret --secret-id satisfactory-admin-password --force-delete-without-recovery
+aws secretsmanager delete-secret --secret-id satisfactory-jwt-secret --force-delete-without-recovery
+aws secretsmanager delete-secret --secret-id satisfactory-server-admin-password --force-delete-without-recovery
+aws secretsmanager delete-secret --secret-id satisfactory-api-token --force-delete-without-recovery
+aws secretsmanager delete-secret --secret-id satisfactory-client-password --force-delete-without-recovery
 ```
 
 ### Testing

@@ -3,40 +3,98 @@
 ```
 .
 ├── cloudformation/          # Infrastructure as Code templates
-│   └── main.yaml           # Main CloudFormation template
+│   └── main.yaml           # Main CloudFormation template (complete with all AWS resources)
 ├── lambda/                 # Backend Lambda functions
 │   ├── authorizer/         # JWT token validation
+│   │   ├── src/
+│   │   │   ├── index.ts           # Main authorizer logic with JWT verification
+│   │   │   └── index.property.test.ts  # Property-based tests for token expiration
+│   │   ├── package.json    # Dependencies (jsonwebtoken, AWS SDK v3)
+│   │   ├── tsconfig.json   # TypeScript configuration
+│   │   └── jest.config.js  # Jest test configuration
 │   ├── control/            # Server lifecycle management
+│   │   ├── src/
+│   │   │   ├── index.ts           # Main API handler (auth, start, stop, status, client password)
+│   │   │   ├── aws-utils.ts       # ECS, Secrets Manager, EventBridge integrations
+│   │   │   ├── satisfactory-api.ts # Satisfactory Server API client with token management
+│   │   │   ├── router.ts          # API route handling and request validation
+│   │   │   ├── types.ts           # Request/response type definitions
+│   │   │   └── index.property.test.ts  # Property-based tests for API endpoints
+│   │   ├── package.json    # Dependencies (AWS SDK v3, axios, jsonwebtoken)
+│   │   ├── tsconfig.json   # TypeScript configuration
+│   │   └── jest.config.js  # Jest test configuration
 │   ├── monitor/            # Auto-shutdown monitoring
-│   └── shared/             # Shared utilities (API client, types)
+│   │   ├── src/
+│   │   │   ├── index.ts           # Timer logic and player monitoring (EventBridge triggered)
+│   │   │   ├── aws-utils.ts       # ECS and Secrets Manager integrations
+│   │   │   ├── dynamodb-utils.ts  # DynamoDB timer state management
+│   │   │   ├── satisfactory-api.ts # Satisfactory Server API client
+│   │   │   ├── types.ts           # Type definitions for timer state
+│   │   │   └── index.property.test.ts  # Property-based tests for shutdown logic
+│   │   ├── package.json    # Dependencies (AWS SDK v3, axios, @aws-sdk/lib-dynamodb)
+│   │   ├── tsconfig.json   # TypeScript configuration
+│   │   └── jest.config.js  # Jest test configuration
+│   └── shared/             # Shared utilities across Lambda functions
+│       ├── aws-clients.ts  # Centralized AWS SDK client configuration
+│       ├── config.ts       # Environment variable configuration management
+│       ├── constants.ts    # Shared constants and configuration values
+│       ├── error-handler.ts # Centralized error handling and logging
+│       ├── errors.ts       # Custom error types with HTTP status codes
+│       ├── secret-cache.ts # Secrets Manager caching for performance
+│       ├── secret-manager.ts # Secrets Manager utility functions
+│       ├── test-helpers.ts # Shared testing utilities and mocks
+│       ├── types.d.ts      # TypeScript type definitions (compiled)
+│       ├── types.ts        # Common type definitions and interfaces
+│       └── validation.ts   # Input validation and sanitization utilities
 ├── admin-panel/            # React frontend application
 │   ├── src/
 │   │   ├── components/     # React components
-│   │   │   ├── LoginForm.tsx           # Password authentication
-│   │   │   ├── Dashboard.tsx           # Main container with routing
-│   │   │   ├── ServerStatus.tsx        # Server state display
-│   │   │   ├── ServerControls.tsx      # Start/stop functionality
-│   │   │   ├── ClientPasswordManager.tsx # Password management
-│   │   │   └── LoadingSpinner.tsx      # Reusable loading component
+│   │   │   ├── LoginForm.tsx           # Password authentication with JWT token management
+│   │   │   ├── Dashboard.tsx           # Main container with auto-refresh and routing logic
+│   │   │   ├── ServerStatus.tsx        # Real-time server state display with responsive design
+│   │   │   ├── ServerControls.tsx      # Start/stop buttons with loading states and error handling
+│   │   │   ├── ClientPasswordManager.tsx # Secure password management with reveal/hide functionality
+│   │   │   ├── LoadingSpinner.tsx      # Reusable loading indicator component
+│   │   │   └── ErrorBoundary.tsx       # Error boundary for graceful error handling
 │   │   ├── services/       # API service layer
-│   │   │   └── api.ts      # Centralized API client with auth handling
+│   │   │   └── api.ts      # Centralized API client with auth handling and 401 interceptors
+│   │   ├── hooks/          # Custom React hooks
+│   │   │   ├── useServerStatus.ts      # Server status management with auto-refresh
+│   │   │   ├── useServerControls.ts    # Server control operations (start/stop)
+│   │   │   └── useClientPassword.ts    # Client password management
 │   │   ├── types/          # TypeScript type definitions
-│   │   │   └── server.ts   # API response interfaces
+│   │   │   └── server.ts   # API response interfaces and type definitions
 │   │   ├── test/           # Test configuration
-│   │   │   └── setup.ts    # Vitest setup with testing-library
-│   │   ├── App.tsx         # Main app component with auth routing
-│   │   └── main.tsx        # Entry point
+│   │   │   └── setup.ts    # Vitest setup with testing-library configuration
+│   │   ├── App.tsx         # Main app component with auth routing and error boundaries
+│   │   └── main.tsx        # Entry point with React 19 setup
 │   ├── public/             # Static assets
-│   ├── dist/               # Build output (generated)
+│   │   └── vite.svg        # Vite logo
+│   ├── dist/               # Build output (generated by npm run build)
 │   ├── .env.example        # Environment variable template
-│   ├── .env.local          # Local development configuration
-│   ├── tailwind.config.js  # Tailwind CSS configuration
-│   ├── postcss.config.js   # PostCSS configuration
-│   ├── vitest.config.ts    # Vitest test configuration
-│   └── package.json        # Dependencies and scripts
+│   ├── .env.local          # Local development configuration (generated by post-deploy script)
+│   ├── tailwind.config.js  # Tailwind CSS 4 configuration
+│   ├── postcss.config.js   # PostCSS configuration for Tailwind
+│   ├── vitest.config.ts    # Vitest test configuration with React testing library
+│   ├── vite.config.ts      # Vite build configuration
+│   ├── eslint.config.js    # ESLint configuration
+│   ├── tsconfig.json       # TypeScript configuration
+│   ├── tsconfig.app.json   # App-specific TypeScript configuration
+│   ├── tsconfig.node.json  # Node-specific TypeScript configuration
+│   └── package.json        # Dependencies and scripts (React 19, Vite 7, Tailwind CSS 4)
 ├── scripts/                # Deployment and utility scripts
-│   └── post-deploy.sh      # Post-deployment configuration
-└── README.md               # Deployment documentation
+│   └── post-deploy.sh      # Post-deployment configuration script
+│       # - Generates secure admin password (32 chars) and JWT secret (64 chars)
+│       # - Retrieves API Gateway URL from CloudFormation outputs
+│       # - Creates .env.local file with VITE_API_URL
+│       # - Idempotent operation (safe to run multiple times)
+│       # - Validates AWS CLI configuration and stack status
+└── README.md               # Comprehensive deployment documentation
+    # - Prerequisites (AWS CLI, Node.js 24+, Docker)
+    # - Step-by-step deployment instructions
+    # - Troubleshooting guide with common issues and solutions
+    # - Cost estimates and optimization tips
+    # - Cleanup and uninstallation procedures
 ```
 
 ## Key Conventions

@@ -338,8 +338,8 @@
   - Verify secrets are created/updated correctly
   - _Requirements: 1.4_
 
-- [ ] 14. Create deployment documentation
-- [ ] 14.1 Write deployment README
+- [x] 14. Create deployment documentation
+- [x] 14.1 Write deployment README
   - Document prerequisites (AWS CLI, Node.js, Docker)
   - Provide step-by-step deployment instructions using the deployment script
   - Include post-deployment configuration steps
@@ -347,13 +347,13 @@
   - **Note: Documentation only - no deployment occurs until Task 15**
   - _Requirements: 1.4_
 
-- [ ] 14.2 Document cost estimates and optimization tips
+- [x] 14.2 Document cost estimates and optimization tips
   - Include monthly cost breakdown
   - Document free tier usage
   - Provide cost optimization recommendations
   - _Requirements: 10.2_
 
-- [ ] 14.3 **CHECKPOINT: Final steering document update**
+- [x] 14.3 **CHECKPOINT: Final steering document update**
   - Review all steering documents for accuracy against final implementation
   - Update `.kiro/steering/tech.md` with final deployment commands and any script details
   - Update `.kiro/steering/structure.md` with complete project structure including scripts
