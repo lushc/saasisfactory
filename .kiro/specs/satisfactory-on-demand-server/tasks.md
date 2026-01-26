@@ -33,8 +33,8 @@
   - **Note: CloudFormation template definitions only - no AWS resources created yet**
   - _Requirements: 2.3, 2.5_
 
-- [~] 3. Implement ECS infrastructure
-- [ ] 3.1 Create ECS cluster and task definition
+- [x] 3. Implement ECS infrastructure
+- [x] 3.1 Create ECS cluster and task definition
   - Define ECS cluster resource
   - Create task definition for Satisfactory Server container
   - Configure CPU (1024), memory (8192), and network mode (awsvpc)
@@ -43,14 +43,14 @@
   - Add environment variables (MAXPLAYERS, PGID, PUID, STEAMBETA)
   - _Requirements: 2.1, 2.2, 2.3, 3.2, 3.3_
 
-- [ ] 3.2 Create ECS service with desired count 0
+- [x] 3.2 Create ECS service with desired count 0
   - Define ECS service resource
   - Set initial desired count to 0 (server starts offline)
   - Configure network configuration with public IP assignment
   - Link to security group and subnets
   - _Requirements: 1.2_
 
-- [ ] 3.3 Set up IAM roles for ECS tasks
+- [x] 3.3 Set up IAM roles for ECS tasks
   - Create ECS task execution role (pull images, write logs)
   - Create ECS task role (access EFS, write logs)
   - Define least-privilege policies
