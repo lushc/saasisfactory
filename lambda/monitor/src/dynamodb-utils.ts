@@ -5,6 +5,7 @@ import {
   PutCommand 
 } from '@aws-sdk/lib-dynamodb';
 import { ShutdownTimerState } from './types';
+import { config } from '../../shared/config';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);

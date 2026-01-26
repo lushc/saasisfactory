@@ -1,5 +1,5 @@
 import { Handler } from 'aws-lambda';
-import { MonitorEvent } from './types';
+import { MonitorEvent, ShutdownTimerState } from './types';
 import { 
   getRunningTask, 
   getTaskPublicIp, 
@@ -16,10 +16,12 @@ import {
   getRemainingMinutes 
 } from './dynamodb-utils';
 import { SatisfactoryApiClient } from './satisfactory-api';
+import { config } from '../../shared/config';
+import { ApiTokenError, ServerNotRunningError } from '../../shared/errors';
 
 const SECRET_NAMES = {
-  serverAdminPassword: process.env.SERVER_ADMIN_PASSWORD_SECRET || 'satisfactory-server-admin-password',
-  apiToken: process.env.API_TOKEN_SECRET || 'satisfactory-api-token'
+  serverAdminPassword: config.secrets.serverAdminPassword,
+  apiToken: config.secrets.apiToken
 };
 
 /**
@@ -39,7 +41,7 @@ async function ensureValidApiToken(apiClient: SatisfactoryApiClient): Promise<st
       console.log('API token refreshed successfully');
     } catch (error) {
       console.error('Failed to refresh API token:', error);
-      throw new Error('Failed to refresh API token');
+      throw new ApiTokenError('Failed to refresh API token');
     }
   }
   
@@ -70,88 +72,124 @@ async function handleShutdownTimer(playerCount: number): Promise<void> {
   console.log(`Current player count: ${playerCount}, Previous: ${currentState.lastPlayerCount}`);
   
   if (playerCount === 0) {
-    if (!currentState.timerStarted) {
-      // Start shutdown timer
-      console.log(`No players connected, starting shutdown timer (${timeoutMinutes} minutes)`);
-      await startShutdownTimer(playerCount, timeoutMinutes);
-    } else {
-      // Check if timer has expired
-      if (isTimerExpired(currentState)) {
-        console.log('Shutdown timer expired, triggering server shutdown');
-        await triggerServerShutdown();
-        return;
-      } else {
-        // Update state with current player count
-        const remainingMinutes = getRemainingMinutes(currentState);
-        console.log(`Shutdown timer active, ${remainingMinutes} minutes remaining`);
-        await updateShutdownTimerState({
-          ...currentState,
-          lastPlayerCount: playerCount
-        });
-      }
-    }
+    await handleZeroPlayerCount(currentState, timeoutMinutes);
   } else {
-    if (currentState.timerStarted) {
-      // Cancel shutdown timer - players have connected
-      console.log(`Players connected (${playerCount}), cancelling shutdown timer`);
-      await cancelShutdownTimer(playerCount);
+    await handleActivePlayerCount(currentState, playerCount);
+  }
+}
+
+/**
+ * Handle logic when no players are connected
+ */
+async function handleZeroPlayerCount(
+  currentState: ShutdownTimerState, 
+  timeoutMinutes: number
+): Promise<void> {
+  if (!currentState.timerStarted) {
+    // Start shutdown timer
+    console.log(`No players connected, starting shutdown timer (${timeoutMinutes} minutes)`);
+    await startShutdownTimer(0, timeoutMinutes);
+  } else {
+    // Check if timer has expired
+    if (isTimerExpired(currentState)) {
+      console.log('Shutdown timer expired, triggering server shutdown');
+      await triggerServerShutdown();
+      return;
     } else {
-      // Just update the player count
+      // Update state with current player count
+      const remainingMinutes = getRemainingMinutes(currentState);
+      console.log(`Shutdown timer active, ${remainingMinutes} minutes remaining`);
       await updateShutdownTimerState({
         ...currentState,
-        lastPlayerCount: playerCount
+        lastPlayerCount: 0
       });
     }
   }
 }
 
 /**
- * Main Lambda handler
+ * Handle logic when players are connected
  */
-export const handler: Handler<MonitorEvent, void> = async (event, context) => {
-  console.log('Monitor Lambda triggered:', JSON.stringify(event, null, 2));
-  
-  try {
-    // Check if ECS task is running
+async function handleActivePlayerCount(
+  currentState: ShutdownTimerState, 
+  playerCount: number
+): Promise<void> {
+  if (currentState.timerStarted) {
+    // Cancel shutdown timer - players have connected
+    console.log(`Players connected (${playerCount}), cancelling shutdown timer`);
+    await cancelShutdownTimer(playerCount);
+  } else {
+    // Just update the player count
+    await updateShutdownTimerState({
+      ...currentState,
+      lastPlayerCount: playerCount
+    });
+  }
+}
+
+/**
+ * Monitor service for handling server monitoring logic
+ */
+class MonitorService {
+  private readonly timeoutMinutes: number;
+
+  constructor() {
+    this.timeoutMinutes = parseInt(process.env.SHUTDOWN_TIMEOUT_MINUTES || '10');
+  }
+
+  /**
+   * Execute monitoring cycle
+   */
+  async executeMonitoringCycle(): Promise<void> {
     const runningTask = await getRunningTask();
     
     if (!runningTask) {
-      console.log('No running task found, exiting monitor');
-      // Clean up timer state since server is not running
-      await updateShutdownTimerState({
-        id: 'singleton',
-        timerStarted: null,
-        shutdownTimeoutMinutes: parseInt(process.env.SHUTDOWN_TIMEOUT_MINUTES || '10'),
-        lastPlayerCount: 0,
-        lastChecked: Date.now()
-      });
+      console.log('No running task found, cleaning up timer state');
+      await this.cleanupTimerState();
       return;
     }
     
     console.log(`Found running task: ${runningTask.taskArn}`);
     
-    // Get task public IP
     const publicIp = await getTaskPublicIp(runningTask);
     if (!publicIp) {
-      console.error('Could not determine public IP for running task');
-      return;
+      throw new Error('Could not determine public IP for running task');
     }
     
     console.log(`Server running at ${publicIp}:7777`);
     
-    // Create API client and get player count
     const apiClient = new SatisfactoryApiClient(publicIp);
     const playerCount = await getCurrentPlayerCount(apiClient);
     
-    // Handle shutdown timer logic
     await handleShutdownTimer(playerCount);
-    
+  }
+
+  /**
+   * Clean up timer state when server is not running
+   */
+  private async cleanupTimerState(): Promise<void> {
+    await updateShutdownTimerState({
+      id: 'singleton',
+      timerStarted: null,
+      shutdownTimeoutMinutes: this.timeoutMinutes,
+      lastPlayerCount: 0,
+      lastChecked: Date.now()
+    });
+  }
+}
+
+/**
+ * Main Lambda handler
+ */
+export const handler: Handler<MonitorEvent, void> = async (event) => {
+  console.log('Monitor Lambda triggered:', JSON.stringify(event, null, 2));
+  
+  try {
+    const monitorService = new MonitorService();
+    await monitorService.executeMonitoringCycle();
     console.log('Monitor Lambda completed successfully');
-    
   } catch (error) {
     console.error('Monitor Lambda failed:', error);
-    
-    // Don't throw the error - we want the monitor to continue running
-    // Log the error and let EventBridge retry on the next schedule
+    // Don't throw - let EventBridge retry on next schedule
   }
 };

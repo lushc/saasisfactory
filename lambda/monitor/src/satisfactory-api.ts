@@ -5,18 +5,19 @@ import {
   AuthTokenResponse, 
   QueryServerStateResponse 
 } from './types';
+import { config } from '../../shared/config';
 
 export class SatisfactoryApiClient {
   private client: AxiosInstance;
   private baseUrl: string;
 
   constructor(serverIp: string) {
-    this.baseUrl = `https://${serverIp}:7777/api/v1`;
+    this.baseUrl = `https://${serverIp}:${config.server.port}/api/v1`;
     
     // Create axios instance with custom HTTPS agent to accept self-signed certificates
     this.client = axios.create({
       baseURL: this.baseUrl,
-      timeout: 30000,
+      timeout: config.server.apiTimeout,
       httpsAgent: new https.Agent({
         rejectUnauthorized: false // Accept self-signed certificates
       })

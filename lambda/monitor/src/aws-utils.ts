@@ -19,15 +19,17 @@ import {
   DeleteRuleCommand, 
   RemoveTargetsCommand 
 } from '@aws-sdk/client-eventbridge';
+import { config } from '../../shared/config';
+import { SecretNotFoundError } from '../../shared/errors';
 
 const ecsClient = new ECSClient({});
 const ec2Client = new EC2Client({});
 const secretsClient = new SecretsManagerClient({});
 const eventBridgeClient = new EventBridgeClient({});
 
-const CLUSTER_NAME = process.env.CLUSTER_NAME || 'satisfactory-cluster';
-const SERVICE_NAME = process.env.SERVICE_NAME || 'satisfactory-service';
-const MONITOR_RULE_NAME = process.env.MONITOR_RULE_NAME || 'satisfactory-monitor-rule';
+const CLUSTER_NAME = config.aws.clusterName;
+const SERVICE_NAME = config.aws.serviceName;
+const MONITOR_RULE_NAME = config.monitor.ruleName;
 
 /**
  * Get running tasks for a service
@@ -101,13 +103,16 @@ export async function getSecret(secretName: string): Promise<string> {
     }));
     
     if (!response.SecretString) {
-      throw new Error(`Secret ${secretName} not found or empty`);
+      throw new SecretNotFoundError(secretName);
     }
     
     return response.SecretString;
   } catch (error) {
     console.error(`Failed to retrieve secret ${secretName}:`, error);
-    throw error;
+    if (error instanceof SecretNotFoundError) {
+      throw error;
+    }
+    throw new SecretNotFoundError(secretName);
   }
 }
 

@@ -142,8 +142,8 @@ describe('Monitor Lambda Property Tests', () => {
    * should trigger a graceful shutdown of the ECS task.
    */
   describe('Property 3: Shutdown Timer Expiration', () => {
-    test('should detect timer expiration when elapsed time exceeds timeout', async () => {
-      await fc.assert(fc.property(
+    test('should detect timer expiration when elapsed time exceeds timeout', () => {
+      fc.assert(fc.property(
         fc.integer({ min: 1, max: 30 }), // timeoutMinutes
         fc.integer({ min: 1, max: 60 }), // extraMinutes (how much over timeout)
         (timeoutMinutes, extraMinutes) => {
@@ -170,8 +170,8 @@ describe('Monitor Lambda Property Tests', () => {
       ), { numRuns: 50 });
     });
 
-    test('should not detect expiration when timer is within timeout period', async () => {
-      await fc.assert(fc.property(
+    test('should not detect expiration when timer is within timeout period', () => {
+      fc.assert(fc.property(
         fc.integer({ min: 2, max: 30 }), // timeoutMinutes
         fc.integer({ min: 1, max: 50 }), // percentageElapsed (1-50% of timeout)
         (timeoutMinutes, percentageElapsed) => {
