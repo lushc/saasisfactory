@@ -313,8 +313,8 @@
   - Configure default root object (index.html)
   - _Requirements: 9.5, 13.6_
 
-- [ ] 12. Implement cost monitoring
-- [ ] 12.1 Create AWS Budgets alert in CloudFormation
+- [x] 12. Implement cost monitoring
+- [x] 12.1 Create AWS Budgets alert in CloudFormation
   - Define budget with monthly threshold ($20)
   - Create SNS topic for notifications
   - Configure alerts at 80% and 100% of budget

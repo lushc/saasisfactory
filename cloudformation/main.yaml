@@ -1147,6 +1147,78 @@ Resources:
       Target: !Sub 'integrations/${ControlLambdaIntegration}'
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref SatisfactoryAPIAuthorizer
+
+  # Cost Monitoring Resources
+
+  # SNS Topic for Budget Alerts
+  BudgetAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${AWS::StackName}-budget-alerts'
+      DisplayName: 'Satisfactory Server Budget Alerts'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-budget-alert-topic'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'SNS topic for AWS budget alert notifications'
+
+  # SNS Topic Subscription for Email Notifications
+  BudgetAlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref BudgetAlertTopic
+      Protocol: email
+      Endpoint: !Ref BudgetAlertEmail
+
+  # AWS Budget with Cost Alerts
+  SatisfactoryServerBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub '${AWS::StackName}-monthly-budget'
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetThreshold
+          Unit: USD
+        CostFilters:
+          TagKey:
+            - Project
+          TagValue:
+            - SatisfactoryOnDemandServer
+        TimePeriod:
+          Start: '2024-01-01'
+          End: '2087-06-15'
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+            NotificationState: ALARM
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BudgetAlertTopic
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+            NotificationState: ALARM
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BudgetAlertTopic
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+            NotificationState: ALARM
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BudgetAlertTopic
     
 # Outputs section - Export key resource identifiers for reference
 Outputs:
@@ -1435,3 +1507,28 @@ Outputs:
     Value: !Sub 'https://${AdminPanelCloudFrontDistribution.DomainName}'
     Export:
       Name: !Sub '${AWS::StackName}-AdminPanel-URL'
+
+  # Cost Monitoring Outputs
+  BudgetAlertTopicArn:
+    Description: 'ARN of the SNS topic for budget alert notifications'
+    Value: !Ref BudgetAlertTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-BudgetAlertTopic-Arn'
+
+  BudgetAlertTopicName:
+    Description: 'Name of the SNS topic for budget alert notifications'
+    Value: !GetAtt BudgetAlertTopic.TopicName
+    Export:
+      Name: !Sub '${AWS::StackName}-BudgetAlertTopic-Name'
+
+  SatisfactoryServerBudgetName:
+    Description: 'Name of the AWS Budget for cost monitoring'
+    Value: !Sub '${AWS::StackName}-monthly-budget'
+    Export:
+      Name: !Sub '${AWS::StackName}-Budget-Name'
+
+  MonthlyBudgetThreshold:
+    Description: 'Monthly budget threshold in USD configured for cost alerts'
+    Value: !Ref MonthlyBudgetThreshold
+    Export:
+      Name: !Sub '${AWS::StackName}-MonthlyBudgetThreshold'
