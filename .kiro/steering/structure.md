@@ -32,6 +32,15 @@
 - All Lambda code is TypeScript, compiled to JavaScript for deployment
 - Environment variables are used for configuration (cluster name, service name, etc.)
 
+#### Monitor Lambda Implementation Patterns
+
+- **DynamoDB Integration**: Uses `@aws-sdk/lib-dynamodb` for simplified document operations
+- **Timer State Management**: Implements shutdown timer logic with DynamoDB persistence
+- **API Token Management**: Automatically refreshes Satisfactory Server API tokens when expired
+- **Error Handling**: Graceful error handling to ensure monitoring continues even on failures
+- **EventBridge Integration**: Triggered by EventBridge rules created/deleted by Control Lambda
+- **Exponential Backoff**: Implements retry logic for AWS service calls
+
 ### Admin Panel
 
 - Components are organized by feature in `src/components/`

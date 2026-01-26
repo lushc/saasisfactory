@@ -762,6 +762,144 @@ Resources:
         - Key: Purpose
           Value: 'Server lifecycle management and API endpoints'
 
+  # IAM Role for Monitor Lambda Function
+  MonitorLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-monitor-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ECSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:ListTasks
+                  - ecs:DescribeTasks
+                  - ecs:UpdateService
+                Resource:
+                  - !Ref SatisfactoryService
+                  - !Sub '${ECSCluster.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeNetworkInterfaces
+                Resource: '*'
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt ShutdownTimerTable.Arn
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:PutSecretValue
+                Resource:
+                  - !Ref ServerAdminPasswordSecret
+                  - !Ref ServerAPITokenSecret
+        - PolicyName: EventBridgeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:DeleteRule
+                  - events:RemoveTargets
+                Resource: !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/satisfactory-monitor-rule'
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub '${MonitorLambdaLogGroup.Arn}:*'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-monitor-lambda-role'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'IAM role for Monitor Lambda with ECS, DynamoDB, and Secrets Manager permissions'
+
+  # CloudWatch Log Group for Monitor Lambda
+  MonitorLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-monitor'
+      RetentionInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-monitor-lambda-log-group'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  # Monitor Lambda Function
+  MonitorLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-monitor'
+      Runtime: nodejs24.x
+      Handler: index.handler
+      Role: !GetAtt MonitorLambdaRole.Arn
+      Code:
+        ZipFile: |
+          // Placeholder code - will be replaced during deployment
+          exports.handler = async (event) => {
+            console.log('Monitor Lambda placeholder - replace with actual code');
+            console.log('Event:', JSON.stringify(event, null, 2));
+            return;
+          };
+      Description: 'Monitor Lambda for Satisfactory Server auto-shutdown based on player count'
+      Environment:
+        Variables:
+          AWS_REGION: !Ref 'AWS::Region'
+          CLUSTER_NAME: !Ref ECSCluster
+          SERVICE_NAME: !Ref SatisfactoryService
+          SHUTDOWN_TIMEOUT_MINUTES: !Ref ShutdownTimeoutMinutes
+          SHUTDOWN_TIMER_TABLE: !Ref ShutdownTimerTable
+          MONITOR_RULE_NAME: 'satisfactory-monitor-rule'
+          SERVER_ADMIN_PASSWORD_SECRET: !Ref ServerAdminPasswordSecret
+          API_TOKEN_SECRET: !Ref ServerAPITokenSecret
+      Timeout: 300
+      MemorySize: 256
+      LoggingConfig:
+        LogGroup: !Ref MonitorLambdaLogGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-monitor-lambda'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Auto-shutdown monitoring based on player count'
+
+  # Lambda Permission for EventBridge to invoke Monitor Lambda
+  MonitorLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MonitorLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/satisfactory-monitor-rule'
+
   # API Gateway HTTP API
   SatisfactoryAPI:
     Type: AWS::ApiGatewayV2::Api
@@ -1115,6 +1253,25 @@ Outputs:
     Value: !GetAtt ControlLambdaRole.Arn
     Export:
       Name: !Sub '${AWS::StackName}-ControlLambdaRole-Arn'
+
+  # Monitor Lambda Function Outputs
+  MonitorLambdaFunctionName:
+    Description: 'Name of the Monitor Lambda function for auto-shutdown monitoring'
+    Value: !Ref MonitorLambdaFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-MonitorLambdaFunction-Name'
+
+  MonitorLambdaFunctionArn:
+    Description: 'ARN of the Monitor Lambda function for auto-shutdown monitoring'
+    Value: !GetAtt MonitorLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-MonitorLambdaFunction-Arn'
+
+  MonitorLambdaRoleArn:
+    Description: 'ARN of the IAM role for Monitor Lambda function'
+    Value: !GetAtt MonitorLambdaRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-MonitorLambdaRole-Arn'
 
   # API Gateway Outputs
   SatisfactoryAPIId:

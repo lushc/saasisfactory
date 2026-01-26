@@ -190,7 +190,7 @@
   - _Requirements: 1.2_
 
 - [ ] 8. Implement Monitor Lambda function
-- [ ] 8.1 Create Monitor Lambda function code
+- [x] 8.1 Create Monitor Lambda function code
   - Set up Node.js 24.x project with TypeScript
   - Check if ECS task is running
   - Retrieve and verify Satisfactory Server API token
@@ -201,19 +201,19 @@
   - Trigger shutdown if timer expires
   - _Requirements: 4.1, 4.2, 4.4, 12.1, 12.2, 12.3_
 
-- [ ] 8.2 Write property test for shutdown timer activation
+- [x] 8.2 Write property test for shutdown timer activation
   - **Property 2: Shutdown Timer Activation**
   - **Validates: Requirements 4.1**
 
-- [ ] 8.3 Write property test for shutdown timer expiration
+- [x] 8.3 Write property test for shutdown timer expiration
   - **Property 3: Shutdown Timer Expiration**
   - **Validates: Requirements 4.2**
 
-- [ ] 8.4 Write property test for shutdown timer cancellation
+- [x] 8.4 Write property test for shutdown timer cancellation
   - **Property 4: Shutdown Timer Cancellation**
   - **Validates: Requirements 4.4**
 
-- [ ] 8.5 Create CloudFormation resource for Monitor Lambda
+- [x] 8.5 Create CloudFormation resource for Monitor Lambda
   - Define Lambda function resource
   - Set up IAM role with ECS, DynamoDB, Secrets Manager permissions
   - Configure environment variables
@@ -221,7 +221,7 @@
   - Note: EventBridge rule created dynamically by Control Lambda
   - _Requirements: 1.2, 12.1_
 
-- [ ] 8.6 **CHECKPOINT: Update steering documents**
+- [x] 8.6 **CHECKPOINT: Update steering documents**
   - Review and update `.kiro/steering/structure.md` with actual Lambda implementation patterns
   - Update `.kiro/steering/tech.md` with any new dependencies or patterns discovered
   - Verify steering docs reflect current state of backend implementation

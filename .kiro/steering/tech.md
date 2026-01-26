@@ -11,8 +11,10 @@
 - **Lambda Functions**: Three functions (Authorizer, Control, Monitor)
 - **Key Libraries**:
   - AWS SDK v3 (@aws-sdk/client-*)
+  - @aws-sdk/lib-dynamodb (DynamoDB document client for Monitor Lambda)
   - axios (HTTP client for Satisfactory Server API)
   - jsonwebtoken (JWT generation and verification)
+  - fast-check (Property-based testing framework)
 
 ## Frontend
 
@@ -32,10 +34,19 @@
 
 ### Lambda Development
 ```bash
-cd lambda
+cd lambda/<function-name>  # authorizer, control, or monitor
 npm install
 npm run build
 npm test
+npm run test:properties    # Run property-based tests
+```
+
+### Monitor Lambda Specific Commands
+```bash
+cd lambda/monitor
+npm run build              # Compile TypeScript
+npm test                   # Run unit tests
+npm run test:properties    # Run property-based tests for shutdown timer logic
 ```
 
 ### Admin Panel Development
@@ -75,8 +86,16 @@ npm run test:properties
 
 The solution integrates with the Satisfactory Server HTTPS API (port 7777) for:
 - Server claiming and authentication
-- Player count monitoring
-- Graceful shutdown
+- Player count monitoring (Monitor Lambda)
+- Graceful shutdown (Monitor Lambda)
 - Client password management
 
 All API calls use Bearer token authentication with automatic token refresh on expiration.
+
+### Monitor Lambda API Integration
+
+- **QueryServerState**: Called every 2 minutes to get player count
+- **VerifyAuthenticationToken**: Validates API token before each call
+- **PasswordLogin**: Regenerates API token when expired
+- **Shutdown**: Triggers graceful server shutdown when timer expires
+- **Self-signed Certificate Handling**: Uses custom HTTPS agent to accept server certificates
