@@ -30,6 +30,24 @@ The solution leverages:
 - **DynamoDB**: Tracks shutdown timer state
 - **S3 + CloudFront**: Hosts the admin panel static website
 
+## API Endpoints
+
+The backend provides the following REST API endpoints:
+
+### Authentication
+- `POST /auth/login` - Authenticate with admin password and receive JWT token
+
+### Server Management
+- `POST /server/start` - Start the Satisfactory server (claims server on first run)
+- `POST /server/stop` - Gracefully stop the server (saves game state)
+- `GET /server/status` - Get current server status, IP, player count, and game phase
+
+### Client Password Management
+- `GET /server/client-password` - Retrieve the current client protection password
+- `POST /server/client-password` - Set or update the client protection password
+
+All endpoints except `/auth/login` require JWT authentication via the `Authorization: Bearer <token>` header.
+
 ## Project Structure
 
 ```

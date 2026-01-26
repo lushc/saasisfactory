@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Auto Commit Changes",
+  "description": "Automatically creates and pushes a conventional commit summarizing changes made to files since the last commit when the agent stops",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Analyze the git diff of staged and unstaged changes, understand what was modified based on our session context, then create and push a meaningful conventional commit message that accurately describes the changes made. Use git add, git commit with an appropriate conventional commit message (feat:, fix:, refactor:, etc.), and git push."
+  }
+}
