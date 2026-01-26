@@ -1,5 +1,11 @@
 # Implementation Plan
 
+**IMPORTANT DEPLOYMENT NOTES:**
+- **No AWS resources are deployed until Task 15** - all prior tasks create local files only
+- **Deployment only happens through the deployment script** - CloudFormation templates and code are prepared but not deployed
+- Tasks 1-14 focus on creating infrastructure templates, Lambda code, and Admin Panel locally
+- Task 15 is the first and only deployment step using the deployment script
+
 - [ ] 1. Set up project structure and CloudFormation templates
 - [ ] 1.1 Create directory structure for CloudFormation templates, Lambda functions, and Admin Panel
   - Create `cloudformation/`, `lambda/`, `admin-panel/`, and `scripts/` directories
@@ -9,6 +15,7 @@
 - [ ] 1.2 Create main CloudFormation template with parameters
   - Define stack parameters (ShutdownTimeoutMinutes, ServerMemory, ServerCPU, BudgetAlertEmail, MonthlyBudgetThreshold)
   - Set up template metadata and description
+  - **Note: Template created locally only - no deployment yet**
   - _Requirements: 1.1, 1.3_
 
 - [ ] 2. Implement networking and storage infrastructure
@@ -16,12 +23,14 @@
   - Create VPC with public subnets
   - Configure Internet Gateway and route tables
   - Set up security groups for ECS tasks (port 7777 UDP/TCP)
+  - **Note: CloudFormation template definitions only - no AWS resources created yet**
   - _Requirements: 1.2, 3.1, 3.2, 3.3_
 
 - [ ] 2.2 Define EFS file system and mount targets
   - Create EFS file system with encryption
   - Configure mount targets in each subnet
   - Set up access points for ECS tasks
+  - **Note: CloudFormation template definitions only - no AWS resources created yet**
   - _Requirements: 2.3, 2.5_
 
 - [ ] 3. Implement ECS infrastructure
@@ -310,6 +319,7 @@
   - Retrieve API Gateway URL from CloudFormation outputs
   - Save API URL to .env.local file
   - Output admin password to console
+  - **Note: Script created locally - will be used in Task 15 for actual deployment**
   - _Requirements: 8.5, 13.1, 13.2_
 
 - [ ] 13.2 Make script executable and test
@@ -321,9 +331,10 @@
 - [ ] 14. Create deployment documentation
 - [ ] 14.1 Write deployment README
   - Document prerequisites (AWS CLI, Node.js, Docker)
-  - Provide step-by-step deployment instructions
+  - Provide step-by-step deployment instructions using the deployment script
   - Include post-deployment configuration steps
   - Add troubleshooting section
+  - **Note: Documentation only - no deployment occurs until Task 15**
   - _Requirements: 1.4_
 
 - [ ] 14.2 Document cost estimates and optimization tips
@@ -339,10 +350,11 @@
   - Ensure all three steering docs are comprehensive and accurate for future reference
 
 - [ ] 15. Final integration and testing
-- [ ] 15.1 Deploy full stack to test environment
-  - Run CloudFormation deployment
-  - Execute post-deploy script
-  - Build and upload Admin Panel
+- [ ] 15.1 Deploy full stack to test environment **[FIRST DEPLOYMENT]**
+  - **This is the first time any AWS resources are created**
+  - Run CloudFormation deployment using deployment script
+  - Execute post-deploy script to configure secrets
+  - Build and upload Admin Panel to S3
   - Verify all resources created successfully
   - _Requirements: 1.2_
 
