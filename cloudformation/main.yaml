@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Satisfactory On-Demand Server - Infrastructure as Code template for cost-effective Satisfactory game server hosting with auto-shutdown capabilities'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Server Configuration"
+        Parameters:
+          - ShutdownTimeoutMinutes
+          - ServerMemory
+          - ServerCPU
+      - Label:
+          default: "Cost Monitoring"
+        Parameters:
+          - BudgetAlertEmail
+          - MonthlyBudgetThreshold
+    ParameterLabels:
+      ShutdownTimeoutMinutes:
+        default: "Auto-shutdown timeout (minutes)"
+      ServerMemory:
+        default: "Server memory allocation (MB)"
+      ServerCPU:
+        default: "Server CPU allocation (units)"
+      BudgetAlertEmail:
+        default: "Budget alert email address"
+      MonthlyBudgetThreshold:
+        default: "Monthly budget threshold (USD)"
+
+Parameters:
+  ShutdownTimeoutMinutes:
+    Type: Number
+    Default: 10
+    MinValue: 5
+    MaxValue: 60
+    Description: 'Time in minutes to wait before automatically shutting down the server when no players are connected'
+    
+  ServerMemory:
+    Type: Number
+    Default: 8192
+    MinValue: 4096
+    MaxValue: 16384
+    Description: 'Memory allocation for the Satisfactory server container in MB (minimum 4GB recommended)'
+    
+  ServerCPU:
+    Type: Number
+    Default: 1024
+    MinValue: 512
+    MaxValue: 4096
+    Description: 'CPU allocation for the Satisfactory server container in CPU units (1024 = 1 vCPU)'
+    
+  BudgetAlertEmail:
+    Type: String
+    Description: 'Email address to receive cost alert notifications when budget thresholds are exceeded'
+    AllowedPattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    ConstraintDescription: 'Must be a valid email address'
+    
+  MonthlyBudgetThreshold:
+    Type: Number
+    Default: 20
+    MinValue: 5
+    MaxValue: 100
+    Description: 'Monthly budget threshold in USD - alerts will be sent at 80% and 100% of this amount'
+
+# Resources section will be populated in subsequent tasks
+Resources:
+  # Placeholder - resources will be added in subsequent implementation tasks
+  PlaceholderResource:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    
+# Outputs section will be populated as resources are added
+Outputs:
+  StackName:
+    Description: 'Name of the CloudFormation stack'
+    Value: !Ref 'AWS::StackName'
+    Export:
+      Name: !Sub '${AWS::StackName}-StackName'
+      
+  Region:
+    Description: 'AWS region where the stack is deployed'
+    Value: !Ref 'AWS::Region'
+    Export:
+      Name: !Sub '${AWS::StackName}-Region'
