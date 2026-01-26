@@ -1,0 +1,175 @@
+import * as fc from 'fast-check';
+import jwt from 'jsonwebtoken';
+import { handler } from './index';
+import { APIGatewayRequestAuthorizerEvent, Context } from 'aws-lambda';
+import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+
+// Mock AWS SDK
+jest.mock('@aws-sdk/client-secrets-manager');
+const mockSecretsClient = SecretsManagerClient as jest.MockedClass<typeof SecretsManagerClient>;
+const mockSend = jest.fn();
+
+// Test constants
+const TEST_JWT_SECRET = 'test-jwt-secret-key-for-property-testing';
+const MOCK_ACCOUNT_ID = '123456789012';
+const MOCK_API_ID = 'abcdef123';
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockSecretsClient.prototype.send = mockSend;
+  
+  // Mock Secrets Manager response
+  mockSend.mockResolvedValue({
+    SecretString: TEST_JWT_SECRET
+  });
+});
+
+// Helper function to create mock event
+function createMockEvent(token: string, methodArn: string): APIGatewayRequestAuthorizerEvent {
+  return {
+    type: 'REQUEST',
+    methodArn: `arn:aws:execute-api:us-east-1:123456789012:abcdef123/${methodArn}`,
+    resource: '/test',
+    path: '/test',
+    httpMethod: 'GET',
+    headers: {
+      authorization: `Bearer ${token}`
+    },
+    multiValueHeaders: {},
+    queryStringParameters: null,
+    multiValueQueryStringParameters: null,
+    pathParameters: null,
+    stageVariables: null,
+    requestContext: {
+      resourceId: 'test',
+      resourcePath: '/test',
+      httpMethod: 'GET',
+      extendedRequestId: 'test',
+      requestTime: new Date().toISOString(),
+      path: '/test',
+      accountId: '123456789012',
+      protocol: 'HTTP/1.1',
+      stage: 'test',
+      domainPrefix: 'test',
+      requestTimeEpoch: Date.now(),
+      requestId: 'test',
+      authorizer: undefined,
+      identity: {
+        cognitoIdentityPoolId: null,
+        accountId: null,
+        cognitoIdentityId: null,
+        caller: null,
+        sourceIp: '127.0.0.1',
+        principalOrgId: null,
+        accessKey: null,
+        cognitoAuthenticationType: null,
+        cognitoAuthenticationProvider: null,
+        userArn: null,
+        userAgent: 'test',
+        user: null,
+        apiKey: null,
+        apiKeyId: null,
+        clientCert: null
+      },
+      domainName: 'test.execute-api.us-east-1.amazonaws.com',
+      apiId: 'test'
+    }
+  };
+}
+
+// Helper function to create mock context
+function createMockContext(): Context {
+  return {
+    callbackWaitsForEmptyEventLoop: false,
+    functionName: 'test',
+    functionVersion: '1',
+    invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:test',
+    memoryLimitInMB: '128',
+    awsRequestId: 'test',
+    logGroupName: '/aws/lambda/test',
+    logStreamName: 'test',
+    getRemainingTimeInMillis: () => 30000,
+    done: () => {},
+    fail: () => {},
+    succeed: () => {}
+  };
+}
+
+/**
+ * Property 7: JWT Token Expiration
+ * **Validates: Requirements 8.4**
+ * 
+ * For any JWT token that is older than 1 hour from its issuance time,
+ * the authorizer Lambda should reject the token and return false for authorization.
+ */
+describe('Property 7: JWT Token Expiration', () => {
+  test('Property: Expired tokens should always be rejected', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        // Generate tokens with various expiration times in the past
+        fc.integer({ min: 3601, max: 86400 }), // 1 hour + 1 second to 24 hours ago
+        fc.string({ minLength: 1, maxLength: 50 }), // Random method ARN
+        async (secondsAgo: number, methodArn: string) => {
+          // Create a token that expired in the past
+          const currentTime = Math.floor(Date.now() / 1000);
+          const issuedAt = currentTime - secondsAgo;
+          const expiresAt = issuedAt + 3600; // Token was valid for 1 hour from issuance
+          
+          const payload = {
+            sub: 'admin' as const,
+            iat: issuedAt,
+            exp: expiresAt
+          };
+          
+          const expiredToken = jwt.sign(payload, TEST_JWT_SECRET);
+          
+          // Create mock event with expired token
+          const event = createMockEvent(expiredToken, methodArn);
+          const context = createMockContext();
+          
+          // Call the authorizer
+          const result = await handler(event, context);
+          
+          // Property: All expired tokens should be denied
+          expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
+        }
+      ),
+      { numRuns: 50 } // Run 50 test cases with different expiration times
+    );
+  });
+
+  test('Property: Valid tokens within 1-hour limit should be allowed', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        // Generate tokens with various valid ages (0 to 3599 seconds old)
+        fc.integer({ min: 0, max: 3599 }), // 0 seconds to 59 minutes 59 seconds
+        fc.string({ minLength: 1, maxLength: 50 }), // Random method ARN
+        async (secondsAgo: number, methodArn: string) => {
+          // Create a token that is still valid
+          const currentTime = Math.floor(Date.now() / 1000);
+          const issuedAt = currentTime - secondsAgo;
+          const expiresAt = currentTime + 1800; // Expires 30 minutes from now
+          
+          const payload = {
+            sub: 'admin' as const,
+            iat: issuedAt,
+            exp: expiresAt
+          };
+          
+          const validToken = jwt.sign(payload, TEST_JWT_SECRET);
+          
+          // Create mock event with valid token
+          const event = createMockEvent(validToken, methodArn);
+          const context = createMockContext();
+          
+          // Call the authorizer
+          const result = await handler(event, context);
+          
+          // Property: All valid tokens should be allowed
+          expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+        }
+      ),
+      { numRuns: 50 } // Run 50 test cases with different valid ages
+    );
+  });
+});

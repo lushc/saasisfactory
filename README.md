@@ -48,7 +48,7 @@ Optimized for small groups (up to 4 players) who play a few hours per day and wa
 ## Prerequisites
 
 - AWS CLI configured with appropriate permissions
-- Node.js 18+ for Lambda development and admin panel
+- Node.js 24+ for Lambda development and admin panel
 - Docker (for local testing, optional)
 
 ## Deployment

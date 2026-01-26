@@ -72,8 +72,8 @@
   - Set up attributes for timer state
   - _Requirements: 4.1, 4.2, 4.4_
 
-- [ ] 6. Implement Lambda authorizer function
-- [ ] 6.1 Create Lambda authorizer function code
+- [-] 6. Implement Lambda authorizer function
+- [x] 6.1 Create Lambda authorizer function code
   - Set up Node.js 24.x project with TypeScript
   - Implement JWT token extraction from Authorization header
   - Add JWT signature verification using jsonwebtoken library
