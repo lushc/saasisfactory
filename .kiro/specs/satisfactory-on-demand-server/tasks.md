@@ -18,15 +18,15 @@
   - **Note: Template created locally only - no deployment yet**
   - _Requirements: 1.1, 1.3_
 
-- [~] 2. Implement networking and storage infrastructure
-- [ ] 2.1 Define VPC and networking resources in CloudFormation
+- [x] 2. Implement networking and storage infrastructure
+- [x] 2.1 Define VPC and networking resources in CloudFormation
   - Create VPC with public subnets
   - Configure Internet Gateway and route tables
   - Set up security groups for ECS tasks (port 7777 UDP/TCP)
   - **Note: CloudFormation template definitions only - no AWS resources created yet**
   - _Requirements: 1.2, 3.1, 3.2, 3.3_
 
-- [ ] 2.2 Define EFS file system and mount targets
+- [x] 2.2 Define EFS file system and mount targets
   - Create EFS file system with encryption
   - Configure mount targets in each subnet
   - Set up access points for ECS tasks
@@ -65,14 +65,14 @@
   - Create `satisfactory-client-password` secret with placeholder
   - _Requirements: 13.1, 13.2_
 
-- [~] 5. Implement DynamoDB table for shutdown timer
-- [ ] 5.1 Create DynamoDB table in CloudFormation
+- [x] 5. Implement DynamoDB table for shutdown timer
+- [x] 5.1 Create DynamoDB table in CloudFormation
   - Define table with partition key `id`
   - Configure on-demand billing mode
   - Set up attributes for timer state
   - _Requirements: 4.1, 4.2, 4.4_
 
-- [~] 6. Implement Lambda authorizer function
+- [ ] 6. Implement Lambda authorizer function
 - [ ] 6.1 Create Lambda authorizer function code
   - Set up Node.js 24.x project with TypeScript
   - Implement JWT token extraction from Authorization header
@@ -98,7 +98,7 @@
   - Configure caching (optional)
   - _Requirements: 11.6_
 
-- [~] 7. Implement Control Lambda function
+- [ ] 7. Implement Control Lambda function
 - [ ] 7.1 Create Control Lambda project structure
   - Set up Node.js 24.x project with TypeScript
   - Install dependencies (AWS SDK v3, axios, jsonwebtoken)
@@ -179,7 +179,7 @@
   - Add CloudWatch Logs permissions
   - _Requirements: 1.2_
 
-- [~] 8. Implement Monitor Lambda function
+- [ ] 8. Implement Monitor Lambda function
 - [ ] 8.1 Create Monitor Lambda function code
   - Set up Node.js 24.x project with TypeScript
   - Check if ECS task is running
@@ -216,7 +216,7 @@
   - Update `.kiro/steering/tech.md` with any new dependencies or patterns discovered
   - Verify steering docs reflect current state of backend implementation
 
-- [~] 9. Implement API Gateway
+- [ ] 9. Implement API Gateway
 - [ ] 9.1 Create API Gateway HTTP API in CloudFormation
   - Define HTTP API resource
   - Configure CORS settings
@@ -233,7 +233,7 @@
   - Link routes to Lambda authorizer (except /auth/login)
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [~] 10. Implement Admin Panel
+- [ ] 10. Implement Admin Panel
 - [ ] 10.1 Create React + Vite + Tailwind project
   - Initialize Vite 7 project with React 19 and TypeScript
   - Install and configure Tailwind CSS 4
@@ -288,7 +288,7 @@
   - Update `.kiro/steering/tech.md` with frontend patterns and any additional libraries
   - Verify steering docs reflect current state of frontend implementation
 
-- [~] 11. Implement S3 and CloudFront for Admin Panel hosting
+- [ ] 11. Implement S3 and CloudFront for Admin Panel hosting
 - [ ] 11.1 Create S3 bucket in CloudFormation
   - Define S3 bucket for static website hosting
   - Configure bucket encryption
@@ -303,7 +303,7 @@
   - Configure default root object (index.html)
   - _Requirements: 9.5, 13.6_
 
-- [~] 12. Implement cost monitoring
+- [ ] 12. Implement cost monitoring
 - [ ] 12.1 Create AWS Budgets alert in CloudFormation
   - Define budget with monthly threshold ($20)
   - Create SNS topic for notifications
@@ -311,7 +311,7 @@
   - Add email subscription
   - _Requirements: 10.2_
 
-- [~] 13. Create post-deployment script
+- [ ] 13. Create post-deployment script
 - [ ] 13.1 Write post-deploy.sh script
   - Check if admin password exists, generate if not (32 chars)
   - Check if JWT secret exists, generate if not (64 chars)
@@ -328,7 +328,7 @@
   - Verify secrets are created/updated correctly
   - _Requirements: 1.4_
 
-- [~] 14. Create deployment documentation
+- [ ] 14. Create deployment documentation
 - [ ] 14.1 Write deployment README
   - Document prerequisites (AWS CLI, Node.js, Docker)
   - Provide step-by-step deployment instructions using the deployment script

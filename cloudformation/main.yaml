@@ -62,13 +62,217 @@ Parameters:
     MaxValue: 100
     Description: 'Monthly budget threshold in USD - alerts will be sent at 80% and 100% of this amount'
 
-# Resources section will be populated in subsequent tasks
+# Resources section - Infrastructure components
 Resources:
-  # Placeholder - resources will be added in subsequent implementation tasks
-  PlaceholderResource:
-    Type: AWS::CloudFormation::WaitConditionHandle
+  # VPC and Networking Resources
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-vpc'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-igw'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-public-subnet-1'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-public-subnet-2'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-public-rt'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  # Security Group for ECS Tasks (Satisfactory Server)
+  ECSTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${AWS::StackName}-ecs-task-sg'
+      GroupDescription: 'Security group for Satisfactory Server ECS tasks - allows game traffic on port 7777'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: udp
+          FromPort: 7777
+          ToPort: 7777
+          CidrIp: 0.0.0.0/0
+          Description: 'Satisfactory game client connections (UDP)'
+        - IpProtocol: tcp
+          FromPort: 7777
+          ToPort: 7777
+          CidrIp: 0.0.0.0/0
+          Description: 'Satisfactory server API (HTTPS)'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: 'All outbound traffic'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-ecs-task-sg'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  # Security Group for EFS Mount Targets
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${AWS::StackName}-efs-sg'
+      GroupDescription: 'Security group for EFS mount targets - allows NFS traffic from ECS tasks'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
+          Description: 'NFS traffic from ECS tasks'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-efs-sg'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+
+  # EFS File System for Persistent Game Saves
+  GameSavesFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      CreationToken: !Sub '${AWS::StackName}-game-saves'
+      Encrypted: true
+      PerformanceMode: generalPurpose
+      ThroughputMode: provisioned
+      ProvisionedThroughputInMibps: 10
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-game-saves-efs'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Persistent storage for Satisfactory game saves and configuration'
+
+  # EFS Mount Target in Public Subnet 1
+  EFSMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref GameSavesFileSystem
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  # EFS Mount Target in Public Subnet 2
+  EFSMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref GameSavesFileSystem
+      SubnetId: !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  # EFS Access Point for ECS Tasks
+  GameSavesAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref GameSavesFileSystem
+      PosixUser:
+        Uid: 1000
+        Gid: 1000
+      RootDirectory:
+        Path: '/satisfactory-config'
+        CreationInfo:
+          OwnerUid: 1000
+          OwnerGid: 1000
+          Permissions: '755'
+      AccessPointTags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-game-saves-access-point'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Access point for ECS tasks to mount game saves directory'
+
+  # DynamoDB Table for Shutdown Timer State
+  ShutdownTimerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-shutdown-timer'
+      BillingMode: ON_DEMAND
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-shutdown-timer-table'
+        - Key: Project
+          Value: SatisfactoryOnDemandServer
+        - Key: Purpose
+          Value: 'Stores shutdown timer state for auto-shutdown functionality'
     
-# Outputs section will be populated as resources are added
+# Outputs section - Export key resource identifiers for reference
 Outputs:
   StackName:
     Description: 'Name of the CloudFormation stack'
@@ -81,3 +285,60 @@ Outputs:
     Value: !Ref 'AWS::Region'
     Export:
       Name: !Sub '${AWS::StackName}-Region'
+
+  # Networking Outputs
+  VPCId:
+    Description: 'ID of the VPC created for the Satisfactory server infrastructure'
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${AWS::StackName}-VPC-ID'
+
+  PublicSubnet1Id:
+    Description: 'ID of the first public subnet for ECS tasks'
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet1-ID'
+
+  PublicSubnet2Id:
+    Description: 'ID of the second public subnet for ECS tasks'
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet2-ID'
+
+  ECSTaskSecurityGroupId:
+    Description: 'ID of the security group for ECS tasks (allows port 7777 UDP/TCP)'
+    Value: !Ref ECSTaskSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-ECSTaskSecurityGroup-ID'
+
+  # EFS Storage Outputs
+  GameSavesFileSystemId:
+    Description: 'ID of the EFS file system for persistent game saves storage'
+    Value: !Ref GameSavesFileSystem
+    Export:
+      Name: !Sub '${AWS::StackName}-GameSavesFileSystem-ID'
+
+  GameSavesAccessPointId:
+    Description: 'ID of the EFS access point for ECS tasks to mount game saves'
+    Value: !Ref GameSavesAccessPoint
+    Export:
+      Name: !Sub '${AWS::StackName}-GameSavesAccessPoint-ID'
+
+  EFSSecurityGroupId:
+    Description: 'ID of the security group for EFS mount targets (allows NFS from ECS tasks)'
+    Value: !Ref EFSSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-EFSSecurityGroup-ID'
+
+  # DynamoDB Outputs
+  ShutdownTimerTableName:
+    Description: 'Name of the DynamoDB table for shutdown timer state management'
+    Value: !Ref ShutdownTimerTable
+    Export:
+      Name: !Sub '${AWS::StackName}-ShutdownTimerTable-Name'
+
+  ShutdownTimerTableArn:
+    Description: 'ARN of the DynamoDB table for shutdown timer state management'
+    Value: !GetAtt ShutdownTimerTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ShutdownTimerTable-Arn'
