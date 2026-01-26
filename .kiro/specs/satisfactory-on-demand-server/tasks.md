@@ -226,14 +226,14 @@
   - Update `.kiro/steering/tech.md` with any new dependencies or patterns discovered
   - Verify steering docs reflect current state of backend implementation
 
-- [ ] 9. Implement API Gateway
-- [ ] 9.1 Create API Gateway HTTP API in CloudFormation
+- [x] 9. Implement API Gateway
+- [x] 9.1 Create API Gateway HTTP API in CloudFormation
   - Define HTTP API resource
   - Configure CORS settings
   - Set up default stage with auto-deploy
   - _Requirements: 11.1, 11.2, 11.3, 13.6_
 
-- [ ] 9.2 Create API Gateway routes and integrations
+- [x] 9.2 Create API Gateway routes and integrations
   - POST /auth/login → Control Lambda (no auth)
   - POST /server/start → Control Lambda (with auth)
   - POST /server/stop → Control Lambda (with auth)
