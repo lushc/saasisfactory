@@ -12,12 +12,28 @@
 ├── admin-panel/            # React frontend application
 │   ├── src/
 │   │   ├── components/     # React components
+│   │   │   ├── LoginForm.tsx           # Password authentication
+│   │   │   ├── Dashboard.tsx           # Main container with routing
+│   │   │   ├── ServerStatus.tsx        # Server state display
+│   │   │   ├── ServerControls.tsx      # Start/stop functionality
+│   │   │   ├── ClientPasswordManager.tsx # Password management
+│   │   │   └── LoadingSpinner.tsx      # Reusable loading component
 │   │   ├── services/       # API service layer
+│   │   │   └── api.ts      # Centralized API client with auth handling
 │   │   ├── types/          # TypeScript type definitions
-│   │   ├── App.tsx         # Main app component
+│   │   │   └── server.ts   # API response interfaces
+│   │   ├── test/           # Test configuration
+│   │   │   └── setup.ts    # Vitest setup with testing-library
+│   │   ├── App.tsx         # Main app component with auth routing
 │   │   └── main.tsx        # Entry point
 │   ├── public/             # Static assets
-│   └── dist/               # Build output (generated)
+│   ├── dist/               # Build output (generated)
+│   ├── .env.example        # Environment variable template
+│   ├── .env.local          # Local development configuration
+│   ├── tailwind.config.js  # Tailwind CSS configuration
+│   ├── postcss.config.js   # PostCSS configuration
+│   ├── vitest.config.ts    # Vitest test configuration
+│   └── package.json        # Dependencies and scripts
 ├── scripts/                # Deployment and utility scripts
 │   └── post-deploy.sh      # Post-deployment configuration
 └── README.md               # Deployment documentation
@@ -43,10 +59,19 @@
 
 ### Admin Panel
 
-- Components are organized by feature in `src/components/`
-- API calls are centralized in `src/services/api.ts`
-- TypeScript interfaces for API responses in `src/types/`
-- Environment variables (VITE_API_URL) configured at build time
+- **Component Architecture**: Modular React components organized by functionality
+  - `LoginForm.tsx`: Password authentication with JWT token management
+  - `Dashboard.tsx`: Main container with auto-refresh and routing logic
+  - `ServerStatus.tsx`: Real-time server state display with responsive design
+  - `ServerControls.tsx`: Start/stop buttons with loading states and error handling
+  - `ClientPasswordManager.tsx`: Secure password management with reveal/hide functionality
+  - `LoadingSpinner.tsx`: Reusable loading indicator component
+- **API Integration**: Centralized in `src/services/api.ts` with automatic 401 handling
+- **Type Safety**: Complete TypeScript interfaces for all API responses in `src/types/server.ts`
+- **State Management**: React hooks for local state, sessionStorage for JWT tokens
+- **Responsive Design**: Mobile-first approach using Tailwind CSS breakpoints (sm:, lg:, xl:)
+- **Environment Configuration**: VITE_API_URL configured at build time via .env files
+- **Testing**: Property-based tests using fast-check for component behavior validation
 
 ### CloudFormation
 

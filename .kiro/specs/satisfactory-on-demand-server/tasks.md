@@ -243,22 +243,22 @@
   - Link routes to Lambda authorizer (except /auth/login)
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [ ] 10. Implement Admin Panel
-- [ ] 10.1 Create React + Vite + Tailwind project
+- [x] 10. Implement Admin Panel
+- [x] 10.1 Create React + Vite + Tailwind project
   - Initialize Vite 7 project with React 19 and TypeScript
   - Install and configure Tailwind CSS 4
   - Set up project structure (components, services, types)
   - Configure environment variables for API URL
   - _Requirements: 9.1, 9.2, 9.3_
 
-- [ ] 10.2 Create API service module
+- [x] 10.2 Create API service module
   - Implement ApiService class with axios
   - Add methods for all API endpoints
   - Implement JWT token storage in sessionStorage
   - Add automatic 401 handling (clear token, redirect to login)
   - _Requirements: 8.4, 11.1, 11.2, 11.3_
 
-- [ ] 10.3 Implement Login page component
+- [x] 10.3 Implement Login page component
   - Create password input form
   - Add submit button and error display
   - Call /auth/login endpoint
@@ -266,7 +266,7 @@
   - Redirect to dashboard on success
   - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 10.4 Implement Dashboard page component
+- [x] 10.4 Implement Dashboard page component
   - Create layout with server status display
   - Add start/stop buttons with loading states
   - Display public IP, port, and player count
@@ -275,11 +275,11 @@
   - Handle automatic logout on JWT expiration
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 6.1, 6.3, 6.4, 7.1, 7.4, 7.5_
 
-- [ ] 10.5 Write property test for server state display
+- [x] 10.5 Write property test for server state display
   - **Property 5: Server State Display**
   - **Validates: Requirements 5.1**
 
-- [ ] 10.6 Implement Client Password Manager component
+- [x] 10.6 Implement Client Password Manager component
   - Add reveal password button
   - Create set password form
   - Call GET /server/client-password endpoint
@@ -287,13 +287,13 @@
   - Hide password by default
   - _Requirements: 8A.1, 8A.2, 8A.3, 8A.5_
 
-- [ ] 10.7 Add responsive design and styling
+- [x] 10.7 Add responsive design and styling
   - Ensure mobile-friendly layout
   - Add loading spinners and error messages
   - Style buttons and forms with Tailwind CSS 4
   - _Requirements: 9.4_
 
-- [ ] 10.8 **CHECKPOINT: Update steering documents**
+- [x] 10.8 **CHECKPOINT: Update steering documents**
   - Review and update `.kiro/steering/structure.md` with actual Admin Panel component organization
   - Update `.kiro/steering/tech.md` with frontend patterns and any additional libraries
   - Verify steering docs reflect current state of frontend implementation
