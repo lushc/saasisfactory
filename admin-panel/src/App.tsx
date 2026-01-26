@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import LoginForm from './components/LoginForm';
 import Dashboard from './components/Dashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import apiService from './services/api';
 
 function App() {
@@ -35,11 +36,15 @@ function App() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginForm onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  return <Dashboard onLogout={handleLogout} />;
+  return (
+    <ErrorBoundary>
+      {!isAuthenticated ? (
+        <LoginForm onLoginSuccess={handleLoginSuccess} />
+      ) : (
+        <Dashboard onLogout={handleLogout} />
+      )}
+    </ErrorBoundary>
+  );
 }
 
 export default App;

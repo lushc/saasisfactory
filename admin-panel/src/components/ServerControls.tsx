@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import type { StatusResponse } from '../types/server';
-import apiService from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
+import { useServerControls } from '../hooks/useServerControls';
 
 interface ServerControlsProps {
   status: StatusResponse | null;
@@ -9,35 +8,21 @@ interface ServerControlsProps {
 }
 
 export default function ServerControls({ status, onStatusChange }: ServerControlsProps) {
-  const [isStarting, setIsStarting] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
-  const [error, setError] = useState('');
+  const { isStarting, isStopping, error, startServer, stopServer, clearError } = useServerControls();
 
   const handleStart = async () => {
-    setIsStarting(true);
-    setError('');
-
-    try {
-      await apiService.startServer();
+    clearError();
+    const success = await startServer();
+    if (success) {
       onStatusChange(); // Trigger status refresh
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start server');
-    } finally {
-      setIsStarting(false);
     }
   };
 
   const handleStop = async () => {
-    setIsStopping(true);
-    setError('');
-
-    try {
-      await apiService.stopServer();
+    clearError();
+    const success = await stopServer();
+    if (success) {
       onStatusChange(); // Trigger status refresh
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to stop server');
-    } finally {
-      setIsStopping(false);
     }
   };
 

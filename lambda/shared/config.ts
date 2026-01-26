@@ -1,4 +1,6 @@
 // Configuration management for Lambda functions
+import { TIMEOUTS } from './constants';
+
 export const config = {
   aws: {
     region: process.env.AWS_REGION || 'us-east-1',
@@ -8,8 +10,8 @@ export const config = {
   },
   server: {
     port: 7777,
-    apiTimeout: 30000,
-    maxStartupWaitTime: 300000,
+    apiTimeout: TIMEOUTS.API_REQUEST,
+    maxStartupWaitTime: TIMEOUTS.SERVER_STARTUP,
     maxApiReadinessAttempts: 30,
     apiReadinessCheckInterval: 10000
   },
@@ -21,8 +23,8 @@ export const config = {
     clientPassword: 'satisfactory-client-password'
   },
   jwt: {
-    expirationTime: 3600, // 1 hour
-    maxAge: 3600 // 1 hour
+    expirationTime: TIMEOUTS.JWT_EXPIRATION,
+    maxAge: TIMEOUTS.JWT_EXPIRATION
   },
   monitor: {
     ruleName: 'satisfactory-monitor-rule',

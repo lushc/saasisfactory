@@ -1,36 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { StatusResponse } from '../types/server';
-import apiService from '../services/api';
 import ServerStatus from './ServerStatus';
 import ServerControls from './ServerControls';
 import ClientPasswordManager from './ClientPasswordManager';
+import { useServerStatus } from '../hooks/useServerStatus';
 
 interface DashboardProps {
   onLogout: () => void;
 }
 
 export default function Dashboard({ onLogout }: DashboardProps) {
-  const [status, setStatus] = useState<StatusResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { status, isLoading, error, fetchStatus, clearError } = useServerStatus();
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [error, setError] = useState('');
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      setError('');
-      const response = await apiService.getServerStatus();
-      setStatus(response);
+  // Update last updated timestamp when status changes
+  useEffect(() => {
+    if (status && !isLoading) {
       setLastUpdated(new Date());
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('401')) {
-        // Token expired, will be handled by API service interceptor
-        return;
-      }
-      setError(err instanceof Error ? err.message : 'Failed to fetch server status');
-    } finally {
-      setIsLoading(false);
     }
-  }, []);
+  }, [status, isLoading]);
 
   // Initial load
   useEffect(() => {
@@ -46,11 +34,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  const handleStatusChange = () => {
+  const handleStatusChange = useCallback(() => {
     // Trigger immediate status refresh after server control actions
-    setIsLoading(true);
     fetchStatus();
-  };
+  }, [fetchStatus]);
+
+  const handleRetry = useCallback(() => {
+    clearError();
+    fetchStatus();
+  }, [clearError, fetchStatus]);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -91,10 +83,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   </div>
                   <div className="mt-4">
                     <button
-                      onClick={() => {
-                        setIsLoading(true);
-                        fetchStatus();
-                      }}
+                      onClick={handleRetry}
                       className="bg-red-50 text-red-800 hover:bg-red-100 px-3 py-2 rounded-md text-sm font-medium"
                     >
                       Retry

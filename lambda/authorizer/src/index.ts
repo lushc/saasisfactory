@@ -1,11 +1,9 @@
 import { APIGatewayRequestAuthorizerEvent, APIGatewayAuthorizerResult, Context } from 'aws-lambda';
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import jwt from 'jsonwebtoken';
 import { JWTPayload } from '../../shared/types';
 import { config } from '../../shared/config';
-import { AuthenticationError, SecretNotFoundError } from '../../shared/errors';
-
-const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION });
+import { AuthenticationError } from '../../shared/errors';
+import { getSecret } from '../../shared/secret-manager';
 
 /**
  * Lambda authorizer function that validates JWT tokens for API Gateway requests
@@ -43,8 +41,8 @@ export const handler = async (
       return generatePolicy('user', 'Deny', event.methodArn);
     }
 
-    // Get JWT secret from Secrets Manager
-    const jwtSecret = await getJWTSecret();
+    // Get JWT secret from Secrets Manager (with caching)
+    const jwtSecret = await getSecret(config.secrets.jwtSecret);
     
     // Verify JWT token
     const decoded = jwt.verify(token, jwtSecret) as JWTPayload;
@@ -89,28 +87,6 @@ export const handler = async (
     return generatePolicy('user', 'Deny', event.methodArn);
   }
 };
-
-/**
- * Retrieve JWT secret from AWS Secrets Manager
- */
-async function getJWTSecret(): Promise<string> {
-  try {
-    const command = new GetSecretValueCommand({ SecretId: config.secrets.jwtSecret });
-    const response = await secretsClient.send(command);
-    
-    if (!response.SecretString) {
-      throw new SecretNotFoundError(config.secrets.jwtSecret);
-    }
-    
-    return response.SecretString;
-  } catch (error) {
-    if (error instanceof SecretNotFoundError) {
-      throw error;
-    }
-    console.error('Failed to retrieve JWT secret:', error);
-    throw new SecretNotFoundError(config.secrets.jwtSecret);
-  }
-}
 
 /**
  * Generate IAM policy for API Gateway

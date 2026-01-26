@@ -1,5 +1,8 @@
 // Shared types for Lambda functions
 
+export type ServerState = 'offline' | 'starting' | 'running' | 'stopping';
+export type AuthMethod = 'passwordless' | 'password';
+
 export interface JWTPayload {
   sub: 'admin'; // Subject (user identifier)
   iat: number; // Issued at (Unix timestamp)
@@ -42,6 +45,16 @@ export interface ServerStartResult {
   task: ServerTask;
   adminToken: string;
   publicIp: string;
+}
+
+export interface ServerStatusDetails {
+  state: ServerState;
+  publicIp?: string;
+  port: number;
+  playerCount?: number;
+  serverName?: string;
+  gamePhase?: string;
+  lastUpdated: string;
 }
 
 export interface ApiErrorResponse {

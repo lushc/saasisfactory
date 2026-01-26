@@ -1,21 +1,13 @@
 import { 
-  ECSClient, 
   UpdateServiceCommand, 
   DescribeTasksCommand, 
   ListTasksCommand,
   Task 
 } from '@aws-sdk/client-ecs';
 import { 
-  EC2Client,
   DescribeNetworkInterfacesCommand
 } from '@aws-sdk/client-ec2';
 import { 
-  SecretsManagerClient, 
-  GetSecretValueCommand, 
-  PutSecretValueCommand 
-} from '@aws-sdk/client-secrets-manager';
-import { 
-  EventBridgeClient, 
   PutRuleCommand, 
   PutTargetsCommand, 
   DeleteRuleCommand, 
@@ -27,12 +19,13 @@ import {
   ServerStartFailedError,
   ApiTokenError 
 } from '../../shared/errors';
+import { getSecret, putSecret } from '../../shared/secret-manager';
+import { 
+  getECSClient, 
+  getEC2Client, 
+  getEventBridgeClient 
+} from '../../shared/aws-clients';
 import { SatisfactoryApiClient } from './satisfactory-api';
-
-const ecsClient = new ECSClient({});
-const ec2Client = new EC2Client({});
-const secretsClient = new SecretsManagerClient({});
-const eventBridgeClient = new EventBridgeClient({});
 
 /**
  * Wait for an operation to succeed with exponential backoff
@@ -63,6 +56,7 @@ export async function updateServiceDesiredCount(
   serviceName: string, 
   desiredCount: number
 ): Promise<void> {
+  const ecsClient = getECSClient();
   await ecsClient.send(new UpdateServiceCommand({
     cluster: clusterName,
     service: serviceName,
@@ -77,6 +71,7 @@ export async function getServiceTasks(
   clusterName: string, 
   serviceName: string
 ): Promise<Task[]> {
+  const ecsClient = getECSClient();
   const listResponse = await ecsClient.send(new ListTasksCommand({
     cluster: clusterName,
     serviceName
@@ -97,7 +92,16 @@ export async function getServiceTasks(
 /**
  * Get public IP address from ECS task
  */
-export async function getTaskPublicIp(task: Task): Promise<string | undefined> {
+export async function getTaskPublicIp(taskArn: string): Promise<string | undefined> {
+  const ecsClient = getECSClient();
+  const response = await ecsClient.send(new DescribeTasksCommand({
+    cluster: config.aws.clusterName,
+    tasks: [taskArn]
+  }));
+  
+  const task = response.tasks?.[0];
+  if (!task) return undefined;
+  
   const eniAttachment = task.attachments?.find(
     attachment => attachment.type === 'ElasticNetworkInterface'
   );
@@ -112,11 +116,12 @@ export async function getTaskPublicIp(task: Task): Promise<string | undefined> {
   
   try {
     // Query EC2 to get the actual public IP
-    const response = await ec2Client.send(new DescribeNetworkInterfacesCommand({
+    const ec2Client = getEC2Client();
+    const ec2Response = await ec2Client.send(new DescribeNetworkInterfacesCommand({
       NetworkInterfaceIds: [eniIdDetail.value]
     }));
     
-    const networkInterface = response.NetworkInterfaces?.[0];
+    const networkInterface = ec2Response.NetworkInterfaces?.[0];
     return networkInterface?.Association?.PublicIp;
   } catch (error) {
     console.error('Failed to get public IP from ENI:', error);
@@ -132,6 +137,7 @@ export async function waitForTaskRunning(
   taskArn: string, 
   maxWaitTimeMs: number = 300000 // 5 minutes
 ): Promise<Task> {
+  const ecsClient = getECSClient();
   const startTime = Date.now();
   
   while (Date.now() - startTime < maxWaitTimeMs) {
@@ -161,39 +167,6 @@ export async function waitForTaskRunning(
 }
 
 /**
- * Get secret value from Secrets Manager
- */
-export async function getSecret(secretName: string): Promise<string> {
-  try {
-    const response = await secretsClient.send(new GetSecretValueCommand({
-      SecretId: secretName
-    }));
-    
-    if (!response.SecretString) {
-      throw new SecretNotFoundError(secretName);
-    }
-    
-    return response.SecretString;
-  } catch (error) {
-    if (error instanceof SecretNotFoundError) {
-      throw error;
-    }
-    console.error(`Failed to retrieve secret ${secretName}:`, error);
-    throw new SecretNotFoundError(secretName);
-  }
-}
-
-/**
- * Update secret value in Secrets Manager
- */
-export async function putSecret(secretName: string, secretValue: string): Promise<void> {
-  await secretsClient.send(new PutSecretValueCommand({
-    SecretId: secretName,
-    SecretString: secretValue
-  }));
-}
-
-/**
  * Generate secure random password
  */
 export function generateSecurePassword(length: number): string {
@@ -211,11 +184,11 @@ export function generateSecurePassword(length: number): string {
 /**
  * Create EventBridge rule for Monitor Lambda
  */
-export async function createMonitorRule(
-  ruleName: string, 
-  lambdaArn: string, 
-  scheduleExpression: string = 'rate(2 minutes)'
-): Promise<void> {
+export async function createMonitorRule(lambdaArn: string): Promise<void> {
+  const eventBridgeClient = getEventBridgeClient();
+  const ruleName = config.monitor.ruleName;
+  const scheduleExpression = config.monitor.scheduleExpression;
+  
   // Create the rule
   await eventBridgeClient.send(new PutRuleCommand({
     Name: ruleName,
@@ -237,7 +210,10 @@ export async function createMonitorRule(
 /**
  * Delete EventBridge rule for Monitor Lambda
  */
-export async function deleteMonitorRule(ruleName: string): Promise<void> {
+export async function deleteMonitorRule(): Promise<void> {
+  const eventBridgeClient = getEventBridgeClient();
+  const ruleName = config.monitor.ruleName;
+  
   try {
     // Remove targets first
     await eventBridgeClient.send(new RemoveTargetsCommand({
@@ -258,18 +234,34 @@ export async function deleteMonitorRule(ruleName: string): Promise<void> {
 /**
  * Get running task for the Satisfactory service
  */
-export async function getRunningTask(): Promise<Task | undefined> {
-  const tasks = await getServiceTasks(config.aws.clusterName, config.aws.serviceName);
-  return tasks.find(task => task.lastStatus === 'RUNNING');
+export async function getRunningTask(
+  clusterName: string, 
+  serviceName: string
+): Promise<{ taskArn?: string; lastStatus?: string; publicIp?: string } | undefined> {
+  const tasks = await getServiceTasks(clusterName, serviceName);
+  const runningTask = tasks.find(task => task.lastStatus === 'RUNNING');
+  
+  if (!runningTask || !runningTask.taskArn) {
+    return undefined;
+  }
+  
+  const publicIp = await getTaskPublicIp(runningTask.taskArn);
+  
+  return {
+    taskArn: runningTask.taskArn,
+    lastStatus: runningTask.lastStatus,
+    publicIp
+  };
 }
 
 /**
  * Ensure API token is valid and refresh if necessary
  */
-export async function ensureValidApiToken(apiClient: SatisfactoryApiClient): Promise<string> {
+export async function ensureValidApiToken(publicIp: string): Promise<string> {
   let apiToken = await getSecret(config.secrets.apiToken);
   
-  const isTokenValid = await apiClient.verifyAuthenticationToken(apiToken);
+  const apiClient = new SatisfactoryApiClient(publicIp, apiToken);
+  const isTokenValid = await apiClient.verifyAuthenticationToken();
   
   if (!isTokenValid) {
     console.log('API token invalid, regenerating...');
@@ -289,13 +281,13 @@ export async function ensureValidApiToken(apiClient: SatisfactoryApiClient): Pro
 /**
  * Wait for server API to become ready
  */
-export async function waitForServerReady(
-  apiClient: SatisfactoryApiClient, 
-  maxAttempts: number = config.server.maxApiReadinessAttempts
-): Promise<void> {
+export async function waitForServerReady(publicIp: string): Promise<void> {
+  const maxAttempts = config.server.maxApiReadinessAttempts;
+  
   for (let attempts = 0; attempts < maxAttempts; attempts++) {
     try {
       console.log(`Checking server API readiness (attempt ${attempts + 1}/${maxAttempts})...`);
+      const apiClient = new SatisfactoryApiClient(publicIp);
       await apiClient.passwordlessLogin();
       console.log('Server API is ready');
       return;
@@ -311,21 +303,21 @@ export async function waitForServerReady(
 /**
  * Claim server or login with existing credentials
  */
-export async function claimOrLoginToServer(
-  apiClient: SatisfactoryApiClient
-): Promise<{ adminPassword: string, adminToken: string }> {
+export async function claimOrLoginToServer(publicIp: string): Promise<string> {
   try {
     const adminPassword = await getSecret(config.secrets.serverAdminPassword);
     console.log('Server already claimed, logging in with existing password');
+    const apiClient = new SatisfactoryApiClient(publicIp);
     const adminToken = await apiClient.passwordLogin(adminPassword);
-    return { adminPassword, adminToken };
+    return adminToken;
   } catch (error) {
     console.log('Server not claimed yet, claiming server...');
     const adminPassword = generateSecurePassword(64);
+    const apiClient = new SatisfactoryApiClient(publicIp);
     const initialAdminToken = await apiClient.passwordlessLogin();
     const adminToken = await apiClient.claimServer(initialAdminToken, adminPassword);
     await putSecret(config.secrets.serverAdminPassword, adminPassword);
     console.log('Server claimed successfully');
-    return { adminPassword, adminToken };
+    return adminToken;
   }
 }
