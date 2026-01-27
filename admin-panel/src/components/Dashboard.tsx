@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { StatusResponse } from '../types/server';
 import ServerStatus from './ServerStatus';
 import ServerControls from './ServerControls';
 import ClientPasswordManager from './ClientPasswordManager';
