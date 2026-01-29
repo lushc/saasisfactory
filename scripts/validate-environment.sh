@@ -70,7 +70,8 @@ check_aws_permissions() {
         "ecs:CreateService"
         "lambda:CreateFunction"
         "apigateway:*"
-        "secretsmanager:CreateSecret"
+        "        "ssm:GetParameter"
+        "ssm:PutParameter""
         "dynamodb:CreateTable"
         "efs:CreateFileSystem"
         "s3:CreateBucket"
@@ -114,9 +115,9 @@ check_aws_permissions() {
         print_warning "Lambda: Limited access - may cause deployment issues"
     fi
     
-    # Test Secrets Manager access
-    if aws secretsmanager list-secrets --max-results 1 &> /dev/null; then
-        print_success "Secrets Manager: Access confirmed"
+    # Test Parameter Store access
+    if aws ssm get-parameters --names "/test" &> /dev/null 2>&1 || [[ $? -eq 1 ]]; then
+        print_success "Parameter Store: Access confirmed"
     else
         print_warning "Secrets Manager: Limited access - may cause deployment issues"
     fi

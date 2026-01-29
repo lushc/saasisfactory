@@ -340,7 +340,7 @@ display_deployment_results() {
     echo "Useful Commands:"
     echo "  - Check stack status: aws cloudformation describe-stacks --stack-name $STACK_NAME"
     echo "  - View Lambda logs: aws logs tail /aws/lambda/satisfactory-control --follow"
-    echo "  - Get admin password: aws secretsmanager get-secret-value --secret-id satisfactory-admin-password --query 'SecretString' --output text"
+    echo "  - Get admin password: aws ssm get-parameter --name /satisfactory/admin-password --with-decryption --query 'Parameter.Value' --output text"
     echo ""
     print_success "Deployment completed! Your Satisfactory server is ready to use."
 }

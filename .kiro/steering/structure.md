@@ -40,7 +40,8 @@
 │       ├── constants.ts    # Shared constants and configuration values
 │       ├── error-handler.ts # Centralized error handling and logging
 │       ├── errors.ts       # Custom error types with HTTP status codes
-│       ├── secret-cache.ts # Secrets Manager caching for performance
+│       ├── parameter-cache.ts # Parameter Store caching for performance
+│       ├── secret-cache.ts # Secrets Manager caching for performance (legacy)
 │       ├── secret-manager.ts # Secrets Manager utility functions
 │       ├── test-helpers.ts # Shared testing utilities and mocks
 │       ├── types.d.ts      # TypeScript type definitions (compiled)

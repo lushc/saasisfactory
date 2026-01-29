@@ -100,10 +100,11 @@ stop_server() {
     
     # Try to get admin password and login
     local admin_password=""
-    if aws secretsmanager get-secret-value --secret-id satisfactory-admin-password &> /dev/null; then
-        admin_password=$(aws secretsmanager get-secret-value \
-            --secret-id satisfactory-admin-password \
-            --query 'SecretString' \
+    if aws ssm get-parameter --name "/satisfactory/admin-password" --with-decryption &> /dev/null; then
+        admin_password=$(aws ssm get-parameter \
+            --name "/satisfactory/admin-password" \
+            --with-decryption \
+            --query 'Parameter.Value' \
             --output text 2>/dev/null || echo "")
     fi
     
@@ -186,20 +187,19 @@ delete_secrets() {
     
     print_warning "Deleting secrets permanently..."
     
-    local secrets=(
-        "satisfactory-admin-password"
-        "satisfactory-jwt-secret"
-        "satisfactory-server-admin-password"
-        "satisfactory-api-token"
-        "satisfactory-client-password"
+    local parameters=(
+        "/satisfactory/admin-password"
+        "/satisfactory/jwt-secret"
+        "/satisfactory/server-admin-password"
+        "/satisfactory/api-token"
+        "/satisfactory/client-password"
     )
     
-    for secret in "${secrets[@]}"; do
-        if aws secretsmanager describe-secret --secret-id "$secret" &> /dev/null; then
-            print_status "Deleting secret: $secret"
-            aws secretsmanager delete-secret \
-                --secret-id "$secret" \
-                --force-delete-without-recovery 2>/dev/null || print_warning "Could not delete secret: $secret"
+    for parameter in "${parameters[@]}"; do
+        if aws ssm get-parameter --name "$parameter" &> /dev/null; then
+            print_status "Deleting parameter: $parameter"
+            aws ssm delete-parameter \
+                --name "$parameter" 2>/dev/null || print_warning "Could not delete parameter: $parameter"
         else
             print_status "Secret not found (may already be deleted): $secret"
         fi
@@ -286,8 +286,8 @@ handle_error() {
     echo "  # Check for remaining resources"
     echo "  aws cloudformation describe-stacks --stack-name $STACK_NAME"
     echo ""
-    echo "  # Delete secrets manually (if desired)"
-    echo "  aws secretsmanager delete-secret --secret-id satisfactory-admin-password --force-delete-without-recovery"
+    echo "  # Delete parameters manually (if desired)"
+    echo "  aws ssm delete-parameter --name /satisfactory/admin-password"
 }
 
 # Main cleanup function

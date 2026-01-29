@@ -9,22 +9,20 @@ import {
   EC2Client,
   DescribeNetworkInterfacesCommand
 } from '@aws-sdk/client-ec2';
-import { 
-  SecretsManagerClient, 
-  GetSecretValueCommand, 
-  PutSecretValueCommand 
-} from '@aws-sdk/client-secrets-manager';
+import { getParameter, putParameter } from '../../shared/parameter-store';
 import { 
   EventBridgeClient, 
   DeleteRuleCommand, 
   RemoveTargetsCommand 
 } from '@aws-sdk/client-eventbridge';
 import { config } from '../../shared/config';
-import { SecretNotFoundError } from '../../shared/errors';
+import { 
+  SecretNotFoundError,
+  ParameterNotFoundError 
+} from '../../shared/errors';
 
 const ecsClient = new ECSClient({});
 const ec2Client = new EC2Client({});
-const secretsClient = new SecretsManagerClient({});
 const eventBridgeClient = new EventBridgeClient({});
 
 const CLUSTER_NAME = config.aws.clusterName;
@@ -94,36 +92,25 @@ export async function getRunningTask(): Promise<Task | undefined> {
 }
 
 /**
- * Get secret value from Secrets Manager
+ * Get parameter value from Parameter Store
  */
-export async function getSecret(secretName: string): Promise<string> {
+export async function getParameterValue(parameterName: string): Promise<string> {
   try {
-    const response = await secretsClient.send(new GetSecretValueCommand({
-      SecretId: secretName
-    }));
-    
-    if (!response.SecretString) {
-      throw new SecretNotFoundError(secretName);
-    }
-    
-    return response.SecretString;
+    return await getParameter(parameterName);
   } catch (error) {
-    console.error(`Failed to retrieve secret ${secretName}:`, error);
-    if (error instanceof SecretNotFoundError) {
+    console.error(`Failed to retrieve parameter ${parameterName}:`, error);
+    if (error instanceof ParameterNotFoundError) {
       throw error;
     }
-    throw new SecretNotFoundError(secretName);
+    throw new ParameterNotFoundError(parameterName);
   }
 }
 
 /**
- * Update secret value in Secrets Manager
+ * Update parameter value in Parameter Store
  */
-export async function putSecret(secretName: string, secretValue: string): Promise<void> {
-  await secretsClient.send(new PutSecretValueCommand({
-    SecretId: secretName,
-    SecretString: secretValue
-  }));
+export async function putParameterValue(parameterName: string, parameterValue: string): Promise<void> {
+  await putParameter(parameterName, parameterValue);
 }
 
 /**

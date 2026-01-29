@@ -128,7 +128,7 @@ This document specifies the requirements for an on-demand Satisfactory game serv
 1. THE Admin Panel SHALL display the current client protection password when the administrator clicks a reveal button
 2. THE Admin Panel SHALL provide a form to set or update the client protection password
 3. WHEN the administrator submits a new client protection password, THE System SHALL update the password on the Satisfactory Server
-4. THE System SHALL store the client protection password securely in AWS Secrets Manager or Parameter Store
+4. THE System SHALL store the client protection password securely in AWS Parameter Store
 5. THE Admin Panel SHALL hide the client protection password by default and only reveal it when explicitly requested
 
 ### Requirement 9
@@ -187,9 +187,9 @@ This document specifies the requirements for an on-demand Satisfactory game serv
 
 #### Acceptance Criteria
 
-1. THE System SHALL store the Satisfactory Server API token securely in AWS Secrets Manager
-2. THE System SHALL store the admin panel password securely in AWS Secrets Manager
-3. THE Backend API SHALL retrieve secrets from secure storage and SHALL NOT expose them to the Admin Panel
+1. THE System SHALL store the Satisfactory Server API token securely in AWS Parameter Store
+2. THE System SHALL store the admin panel password securely in AWS Parameter Store
+3. THE Backend API SHALL retrieve configuration values from secure storage and SHALL NOT expose them to the Admin Panel
 4. THE Backend API SHALL communicate with the Satisfactory Server API using the stored API token
 5. THE Admin Panel SHALL only receive non-sensitive data from the Backend API (server status, IP address, player count)
 6. THE System SHALL use HTTPS for all communication between the Admin Panel and Backend API

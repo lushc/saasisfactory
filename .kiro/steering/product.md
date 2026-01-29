@@ -8,7 +8,7 @@ This project is an on-demand Satisfactory game server solution deployed on AWS i
 - **Web-based management**: React admin panel for starting, stopping, and monitoring the server with real-time status updates
 - **Persistent storage**: Game saves are retained across server restarts using Amazon EFS with encryption at rest
 - **Cost optimization**: Designed to minimize AWS costs by only running when needed (estimated $14-28/month based on usage)
-- **Security**: Password-protected admin panel with JWT authentication (1-hour expiration), secure secret management via AWS Secrets Manager
+- **Security**: Password-protected admin panel with JWT authentication (1-hour expiration), secure configuration management via AWS Parameter Store
 - **Client password management**: Set, update, and remove Satisfactory server client protection passwords through the admin panel
 - **Automatic server claiming**: First-time server setup is handled automatically with secure password generation
 - **Comprehensive monitoring**: Built-in cost alerts, CloudWatch logging, and real-time player count tracking

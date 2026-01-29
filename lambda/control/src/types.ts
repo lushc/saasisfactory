@@ -6,17 +6,17 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string; // JWT token
-  expiresIn: number; // 3600 seconds
+  expiresAt: number; // Unix timestamp when token expires
 }
 
 export interface StartResponse {
-  status: 'starting' | 'running';
-  taskArn?: string;
+  message: string;
   publicIp?: string;
+  port: number;
 }
 
 export interface StopResponse {
-  status: 'stopping';
+  message: string;
 }
 
 export interface StatusResponse {
@@ -26,7 +26,6 @@ export interface StatusResponse {
   playerCount?: number;
   serverName?: string;
   gamePhase?: string;
-  lastUpdated: string;
 }
 
 export interface ClientPasswordResponse {
@@ -38,8 +37,7 @@ export interface SetClientPasswordRequest {
 }
 
 export interface SetClientPasswordResponse {
-  success: boolean;
-  message?: string; // Optional success/error message
+  message: string;
 }
 
 // ECS Task types
@@ -87,5 +85,8 @@ export interface AuthTokenResponse {
 }
 
 export interface QueryServerStateResponse {
+  playerCount: number;
+  serverName: string;
+  gamePhase: string;
   serverGameState: ServerGameState;
 }

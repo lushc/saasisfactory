@@ -1,4 +1,4 @@
-// Simple in-memory cache for secrets with TTL
+// Simple in-memory cache for parameters with TTL
 import { TIMEOUTS } from './constants';
 
 interface CacheEntry {
@@ -6,29 +6,33 @@ interface CacheEntry {
   expires: number;
 }
 
-class SecretCache {
+class ParameterCache {
   private cache = new Map<string, CacheEntry>();
-  private ttl = TIMEOUTS.SECRET_CACHE_TTL;
+  private ttl = TIMEOUTS.PARAMETER_CACHE_TTL;
 
-  async get(secretId: string): Promise<string | null> {
-    const cached = this.cache.get(secretId);
+  async get(parameterName: string): Promise<string | null> {
+    const cached = this.cache.get(parameterName);
     if (cached && cached.expires > Date.now()) {
       return cached.value;
     }
     
     // Clean up expired entry
     if (cached) {
-      this.cache.delete(secretId);
+      this.cache.delete(parameterName);
     }
     
     return null;
   }
 
-  set(secretId: string, value: string): void {
-    this.cache.set(secretId, {
+  set(parameterName: string, value: string): void {
+    this.cache.set(parameterName, {
       value,
       expires: Date.now() + this.ttl
     });
+  }
+
+  delete(parameterName: string): void {
+    this.cache.delete(parameterName);
   }
 
   clear(): void {
@@ -42,4 +46,4 @@ class SecretCache {
 }
 
 // Export singleton instance
-export const secretCache = new SecretCache();
+export const parameterCache = new ParameterCache();

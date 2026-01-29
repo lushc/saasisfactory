@@ -3,8 +3,8 @@ import { MonitorEvent, ShutdownTimerState } from './types';
 import { 
   getRunningTask, 
   getTaskPublicIp, 
-  getSecret, 
-  putSecret,
+  getParameterValue, 
+  putParameterValue,
   triggerServerShutdown 
 } from './aws-utils';
 import { 
@@ -19,25 +19,25 @@ import { SatisfactoryApiClient } from './satisfactory-api';
 import { config } from '../../shared/config';
 import { ApiTokenError, ServerNotRunningError } from '../../shared/errors';
 
-const SECRET_NAMES = {
-  serverAdminPassword: config.secrets.serverAdminPassword,
-  apiToken: config.secrets.apiToken
+const PARAMETER_NAMES = {
+  serverAdminPassword: config.parameters.serverAdminPassword,
+  apiToken: config.parameters.apiToken
 };
 
 /**
  * Ensure API token is valid and refresh if necessary
  */
 async function ensureValidApiToken(apiClient: SatisfactoryApiClient): Promise<string> {
-  let apiToken = await getSecret(SECRET_NAMES.apiToken);
+  let apiToken = await getParameterValue(PARAMETER_NAMES.apiToken);
   
   const isTokenValid = await apiClient.verifyAuthenticationToken(apiToken);
   
   if (!isTokenValid) {
     console.log('API token invalid, regenerating...');
     try {
-      const adminPassword = await getSecret(SECRET_NAMES.serverAdminPassword);
+      const adminPassword = await getParameterValue(PARAMETER_NAMES.serverAdminPassword);
       apiToken = await apiClient.passwordLogin(adminPassword);
-      await putSecret(SECRET_NAMES.apiToken, apiToken);
+      await putParameterValue(PARAMETER_NAMES.apiToken, apiToken);
       console.log('API token refreshed successfully');
     } catch (error) {
       console.error('Failed to refresh API token:', error);

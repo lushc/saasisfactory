@@ -19,7 +19,7 @@ import {
   ServerStartFailedError,
   ApiTokenError 
 } from '../../shared/errors';
-import { getSecret, putSecret } from '../../shared/secret-manager';
+import { getParameter, putParameter } from '../../shared/parameter-store';
 import { 
   getECSClient, 
   getEC2Client, 
@@ -258,17 +258,17 @@ export async function getRunningTask(
  * Ensure API token is valid and refresh if necessary
  */
 export async function ensureValidApiToken(publicIp: string): Promise<string> {
-  let apiToken = await getSecret(config.secrets.apiToken);
+  let apiToken = await getParameter(config.parameters.apiToken);
   
-  const apiClient = new SatisfactoryApiClient(publicIp, apiToken);
-  const isTokenValid = await apiClient.verifyAuthenticationToken();
+  const apiClient = new SatisfactoryApiClient(publicIp);
+  const isTokenValid = await apiClient.verifyAuthenticationToken(apiToken);
   
   if (!isTokenValid) {
     console.log('API token invalid, regenerating...');
     try {
-      const adminPassword = await getSecret(config.secrets.serverAdminPassword);
+      const adminPassword = await getParameter(config.parameters.serverAdminPassword);
       apiToken = await apiClient.passwordLogin(adminPassword);
-      await putSecret(config.secrets.apiToken, apiToken);
+      await putParameter(config.parameters.apiToken, apiToken);
     } catch (error) {
       console.error('Failed to refresh API token:', error);
       throw new ApiTokenError('Failed to refresh API token');
@@ -305,7 +305,7 @@ export async function waitForServerReady(publicIp: string): Promise<void> {
  */
 export async function claimOrLoginToServer(publicIp: string): Promise<string> {
   try {
-    const adminPassword = await getSecret(config.secrets.serverAdminPassword);
+    const adminPassword = await getParameter(config.parameters.serverAdminPassword);
     console.log('Server already claimed, logging in with existing password');
     const apiClient = new SatisfactoryApiClient(publicIp);
     const adminToken = await apiClient.passwordLogin(adminPassword);
@@ -316,7 +316,7 @@ export async function claimOrLoginToServer(publicIp: string): Promise<string> {
     const apiClient = new SatisfactoryApiClient(publicIp);
     const initialAdminToken = await apiClient.passwordlessLogin();
     const adminToken = await apiClient.claimServer(initialAdminToken, adminPassword);
-    await putSecret(config.secrets.serverAdminPassword, adminPassword);
+    await putParameter(config.parameters.serverAdminPassword, adminPassword);
     console.log('Server claimed successfully');
     return adminToken;
   }

@@ -61,7 +61,7 @@ Before deploying this solution, ensure you have the following installed and conf
    - ECS (create clusters, services, task definitions)
    - Lambda (create/update functions)
    - API Gateway (create HTTP APIs)
-   - Secrets Manager (create/read/update secrets)
+   - Systems Manager Parameter Store (create/read/update parameters)
    - DynamoDB (create tables)
    - EFS (create file systems)
    - S3 (create buckets, upload objects)
@@ -123,12 +123,12 @@ Examples:
 
 Options:
   -s, --stack-name NAME          CloudFormation stack name (default: satisfactory-server)
-  --delete-secrets               Also delete secrets (PERMANENT - cannot be undone)
+  --delete-parameters            Also delete parameters (PERMANENT - cannot be undone)
   -h, --help                     Show help message
 
 Examples:
-  ./scripts/cleanup.sh                    # Preserves secrets for redeployment
-  ./scripts/cleanup.sh --delete-secrets   # Complete permanent cleanup
+  ./scripts/cleanup.sh                      # Preserves parameters for redeployment
+  ./scripts/cleanup.sh --delete-parameters  # Complete permanent cleanup
 ```
 
 **What the automated deployment does:**
@@ -358,7 +358,7 @@ Runtime.ImportModuleError: Error: Cannot find module 'aws-sdk'
 **Solutions**:
 1. Verify the admin password using:
    ```bash
-   aws secretsmanager get-secret-value --secret-id satisfactory-admin-password --query 'SecretString' --output text
+   aws ssm get-parameter --name "/satisfactory/admin-password" --with-decryption --query 'Parameter.Value' --output text
    ```
 2. Check CloudWatch logs for the Authorizer Lambda function
 3. Ensure JWT secret was generated correctly
@@ -425,13 +425,13 @@ aws ecs list-tasks --cluster satisfactory-cluster --service-name satisfactory-se
 aws ecs describe-tasks --cluster satisfactory-cluster --tasks <task-arn>
 ```
 
-#### Check Secrets
+#### Check Parameters
 ```bash
-# List all satisfactory-related secrets
-aws secretsmanager list-secrets --filters Key=name,Values=satisfactory
+# List all satisfactory-related parameters
+aws ssm get-parameters-by-path --path "/satisfactory" --recursive
 
-# Get specific secret value
-aws secretsmanager get-secret-value --secret-id satisfactory-admin-password
+# Get specific parameter value
+aws ssm get-parameter --name "/satisfactory/admin-password" --with-decryption
 ```
 
 #### Test API Endpoints
@@ -486,17 +486,17 @@ aws cloudformation delete-stack --stack-name satisfactory-server
 aws cloudformation wait stack-delete-complete --stack-name satisfactory-server
 ```
 
-### Step 4: Clean Up Secrets (Optional)
+### Step 4: Clean Up Parameters (Optional)
 ```bash
-# Delete secrets if you don't plan to redeploy
-aws secretsmanager delete-secret --secret-id satisfactory-admin-password --force-delete-without-recovery
-aws secretsmanager delete-secret --secret-id satisfactory-jwt-secret --force-delete-without-recovery
-aws secretsmanager delete-secret --secret-id satisfactory-server-admin-password --force-delete-without-recovery
-aws secretsmanager delete-secret --secret-id satisfactory-api-token --force-delete-without-recovery
-aws secretsmanager delete-secret --secret-id satisfactory-client-password --force-delete-without-recovery
+# Delete parameters if you don't plan to redeploy
+aws ssm delete-parameter --name "/satisfactory/admin-password"
+aws ssm delete-parameter --name "/satisfactory/jwt-secret"
+aws ssm delete-parameter --name "/satisfactory/server-admin-password"
+aws ssm delete-parameter --name "/satisfactory/api-token"
+aws ssm delete-parameter --name "/satisfactory/client-password"
 ```
 
-**Note**: Deleting secrets with `--force-delete-without-recovery` is permanent and cannot be undone.
+**Note**: Deleting parameters is permanent and cannot be undone.
 
 ## Key Features
 
@@ -517,7 +517,7 @@ The solution leverages:
   - **Control Lambda**: Manages server start/stop operations, status queries, and client password management
   - **Monitor Lambda**: Tracks player activity and handles auto-shutdown with DynamoDB timer state management
 - **API Gateway HTTP API**: Exposes REST endpoints with Lambda authorizer integration
-- **Secrets Manager**: Securely stores admin passwords, JWT secrets, and Satisfactory Server API tokens
+- **Parameter Store**: Securely stores admin passwords, JWT secrets, and Satisfactory Server API tokens
 - **DynamoDB**: Tracks shutdown timer state for auto-shutdown functionality
 - **EventBridge**: Triggers monitoring Lambda every 2 minutes (created dynamically when server starts)
 - **S3 + CloudFront**: Hosts the admin panel static website
@@ -706,9 +706,9 @@ Based on typical usage patterns (4 hours/day, 120 hours/month), here are the est
   - On-demand pricing for timer state storage
   - Minimal read/write operations
   - Free tier: 25 GB storage, 25 RCU, 25 WCU
-- **Secrets Manager**: $2.00 - $2.50
-  - 5 secrets × $0.40/month each = $2.00
-  - API calls: ~$0.50/month
+- **Secrets Manager**: $0.00 - $0.00
+  - Migrated to Parameter Store (free tier)
+  - No additional costs for standard SecureString parameters
 - **CloudWatch Logs**: $0.00 - $1.00
   - Log storage and ingestion
   - Free tier: 5 GB ingestion, 5 GB storage
@@ -719,7 +719,7 @@ Based on typical usage patterns (4 hours/day, 120 hours/month), here are the est
   - CDN for Admin Panel
   - Free tier: 1 TB data transfer, 10M requests
 
-**Subtotal (Always Running): $2.00 - $8.25/month**
+**Subtotal (Always Running): $0.00 - $6.25/month**
 
 #### Compute Resources (Only When Server Running)
 - **ECS Fargate**: $8.00 - $12.00
@@ -737,10 +737,10 @@ Based on typical usage patterns (4 hours/day, 120 hours/month), here are the est
 
 **Subtotal (When Running): $12.00 - $20.00/month**
 
-#### **Total Estimated Monthly Cost: $14.00 - $28.25**
-- **Conservative estimate**: $18/month (4 hours/day usage)
-- **Light usage** (2 hours/day): $10-15/month
-- **Heavy usage** (8 hours/day): $25-35/month
+#### **Total Estimated Monthly Cost: $12.00 - $26.25**
+- **Conservative estimate**: $16/month (4 hours/day usage)
+- **Light usage** (2 hours/day): $8-13/month
+- **Heavy usage** (8 hours/day): $23-33/month
 
 ### Free Tier Benefits (First 12 Months)
 
@@ -755,7 +755,7 @@ AWS Free Tier significantly reduces costs for new accounts:
 - **EFS**: 5 GB storage free
 - **Data Transfer**: 1 GB outbound free
 
-**With Free Tier: $8.00 - $15.00/month** (primarily ECS Fargate costs)
+**With Free Tier: $6.00 - $13.00/month** (primarily ECS Fargate costs)
 
 ### Cost Optimization Tips
 
@@ -983,7 +983,7 @@ Optimized for small groups (up to 4 players) who play a few hours per day and wa
 ## Security
 
 - **Admin Panel Authentication**: Password-protected with JWT tokens (1-hour expiration)
-- **Secret Management**: All credentials stored in AWS Secrets Manager, never in code
+- **Configuration Management**: All credentials stored in AWS Parameter Store, never in code
 - **API Security**: Bearer token authentication for all protected endpoints
 - **HTTPS Enforcement**: All communications encrypted in transit
 - **IAM Roles**: Least-privilege access for all AWS resources

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { JWTPayload } from '../../shared/types';
 import { config } from '../../shared/config';
 import { AuthenticationError } from '../../shared/errors';
-import { getSecret } from '../../shared/secret-manager';
+import { getParameter } from '../../shared/parameter-store';
 
 /**
  * Lambda authorizer function that validates JWT tokens for API Gateway requests
@@ -41,8 +41,8 @@ export const handler = async (
       return generatePolicy('user', 'Deny', event.methodArn);
     }
 
-    // Get JWT secret from Secrets Manager (with caching)
-    const jwtSecret = await getSecret(config.secrets.jwtSecret);
+    // Get JWT secret from Parameter Store (with caching)
+    const jwtSecret = await getParameter(config.parameters.jwtSecret);
     
     // Verify JWT token
     const decoded = jwt.verify(token, jwtSecret) as JWTPayload;

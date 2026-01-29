@@ -1,5 +1,5 @@
 // Shared AWS client instances for connection pooling
-import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { SSMClient } from '@aws-sdk/client-ssm';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { EventBridgeClient } from '@aws-sdk/client-eventbridge';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -8,18 +8,18 @@ import { EC2Client } from '@aws-sdk/client-ec2';
 import { config } from './config';
 
 // Singleton AWS clients for connection pooling
-let secretsClient: SecretsManagerClient;
+let ssmClient: SSMClient;
 let ecsClient: ECSClient;
 let eventBridgeClient: EventBridgeClient;
 let dynamoDbClient: DynamoDBClient;
 let dynamoDbDocClient: DynamoDBDocumentClient;
 let ec2Client: EC2Client;
 
-export function getSecretsClient(): SecretsManagerClient {
-  if (!secretsClient) {
-    secretsClient = new SecretsManagerClient({ region: config.aws.region });
+export function getSSMClient(): SSMClient {
+  if (!ssmClient) {
+    ssmClient = new SSMClient({ region: config.aws.region });
   }
-  return secretsClient;
+  return ssmClient;
 }
 
 export function getECSClient(): ECSClient {

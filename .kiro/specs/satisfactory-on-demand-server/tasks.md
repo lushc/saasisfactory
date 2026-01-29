@@ -56,10 +56,10 @@
   - Define least-privilege policies
   - _Requirements: 1.5_
 
-- [x] 4. Implement Secrets Manager resources
-- [x] 4.1 Create Secrets Manager secrets in CloudFormation
-  - Create `satisfactory-admin-password` secret with placeholder
-  - Create `satisfactory-jwt-secret` secret with placeholder
+- [x] 4. Implement Parameter Store resources
+- [x] 4.1 Create Parameter Store parameters in CloudFormation
+  - Create `/satisfactory/admin-password` parameter with placeholder
+  - Create `/satisfactory/jwt-secret` parameter with placeholder
   - Create `satisfactory-server-admin-password` secret with placeholder
   - Create `satisfactory-api-token` secret with placeholder
   - Create `satisfactory-client-password` secret with placeholder
@@ -87,7 +87,7 @@
 
 - [x] 6.3 Create CloudFormation resource for authorizer Lambda
   - Define Lambda function resource
-  - Set up IAM role with Secrets Manager read permissions
+  - Set up IAM role with Parameter Store read permissions
   - Configure environment variables
   - Add CloudWatch Logs permissions
   - _Requirements: 1.2_
@@ -106,7 +106,7 @@
   - _Requirements: 11.1, 11.2, 11.3_
 
 - [x] 7.2 Implement POST /auth/login endpoint
-  - Validate password against Secrets Manager
+  - Validate password against Parameter Store
   - Generate JWT token with 1-hour expiration
   - Return token and expiration time
   - Handle authentication errors
@@ -123,13 +123,13 @@
   - Check if server is claimed (first startup vs subsequent)
   - If unclaimed: generate 64-char password, call PasswordlessLogin, call ClaimServer
   - If claimed: retrieve password, call PasswordLogin
-  - Store Satisfactory Server admin password and API token in Secrets Manager
+  - Store Satisfactory Server admin password and API token in Parameter Store
   - Create EventBridge rule for Monitor Lambda (every 2 minutes)
   - Return server status and public IP
   - _Requirements: 6.2, 3.4_
 
 - [x] 7.5 Implement POST /server/stop endpoint
-  - Retrieve Satisfactory Server API token from Secrets Manager
+  - Retrieve Satisfactory Server API token from Parameter Store
   - Verify token with VerifyAuthenticationToken
   - If invalid, regenerate via PasswordLogin
   - Call Shutdown API to save game
@@ -148,7 +148,7 @@
 - [x] 7.7 Implement GET /server/client-password endpoint
   - Retrieve Satisfactory Server API token
   - Verify token with VerifyAuthenticationToken
-  - Retrieve client password from Secrets Manager
+  - Retrieve client password from Parameter Store
   - Return password
   - _Requirements: 8A.1, 11.4_
 
@@ -156,7 +156,7 @@
   - Retrieve Satisfactory Server API token
   - Verify token with VerifyAuthenticationToken
   - Call SetClientPassword API
-  - Update password in Secrets Manager
+  - Update password in Parameter Store
   - Return success status
   - _Requirements: 8A.3, 8A.4, 11.5_
 
@@ -174,7 +174,7 @@
 
 - [x] 7.12 Create CloudFormation resource for Control Lambda
   - Define Lambda function resource
-  - Set up IAM role with ECS, Secrets Manager, EventBridge permissions
+  - Set up IAM role with ECS, Parameter Store, EventBridge permissions
   - Configure environment variables (cluster name, service name, etc.)
   - Add CloudWatch Logs permissions
   - **REFACTORING COMPLETED**: Implemented comprehensive code quality improvements including:
@@ -215,7 +215,7 @@
 
 - [x] 8.5 Create CloudFormation resource for Monitor Lambda
   - Define Lambda function resource
-  - Set up IAM role with ECS, DynamoDB, Secrets Manager permissions
+  - Set up IAM role with ECS, DynamoDB, Parameter Store permissions
   - Configure environment variables
   - Add CloudWatch Logs permissions
   - Note: EventBridge rule created dynamically by Control Lambda
@@ -384,7 +384,7 @@
 
 - [ ] 15.4 Test client password management
   - Set client password through Admin Panel
-  - Verify password stored in Secrets Manager
+  - Verify password stored in Parameter Store
   - Retrieve password through Admin Panel
   - Test password update
   - _Requirements: 8A.3, 8A.4_

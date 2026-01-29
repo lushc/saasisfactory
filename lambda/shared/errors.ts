@@ -53,3 +53,15 @@ export class SecretNotFoundError extends SatisfactoryServerError {
     super(`Secret not found: ${secretName}`, ERROR_CODES.SECRET_NOT_FOUND, HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
+
+export class ParameterNotFoundError extends SatisfactoryServerError {
+  constructor(parameterName: string) {
+    super(`Parameter not found: ${parameterName}`, ERROR_CODES.PARAMETER_NOT_FOUND, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
+
+export class ParameterAccessDeniedError extends SatisfactoryServerError {
+  constructor(parameterName: string) {
+    super(`Access denied for parameter: ${parameterName}`, ERROR_CODES.PARAMETER_ACCESS_DENIED, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}

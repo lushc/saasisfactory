@@ -4,23 +4,27 @@ import { handler } from './index';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 
 // Mock AWS SDK and utilities
-jest.mock('@aws-sdk/client-secrets-manager');
+jest.mock('@aws-sdk/client-ssm');
 jest.mock('@aws-sdk/client-ecs');
 jest.mock('@aws-sdk/client-ec2');
 jest.mock('@aws-sdk/client-eventbridge');
 jest.mock('./aws-utils');
 jest.mock('./satisfactory-api');
+jest.mock('../../shared/parameter-store');
 
 import * as awsUtils from './aws-utils';
+import * as parameterStore from '../../shared/parameter-store';
 
-const mockGetSecret = jest.fn();
+const mockGetParameter = jest.fn();
 const mockGetServiceTasks = jest.fn();
 const mockGetRunningTask = jest.fn();
 
 // Mock all aws-utils functions
-(awsUtils as any).getSecret = mockGetSecret;
 (awsUtils as any).getServiceTasks = mockGetServiceTasks;
 (awsUtils as any).getRunningTask = mockGetRunningTask;
+
+// Mock parameter store functions
+(parameterStore as any).getParameter = mockGetParameter;
 
 describe('Control Lambda Property Tests', () => {
   beforeEach(() => {
@@ -29,6 +33,7 @@ describe('Control Lambda Property Tests', () => {
     // Setup default mocks
     mockGetServiceTasks.mockResolvedValue([]);
     mockGetRunningTask.mockResolvedValue(undefined);
+    mockGetParameter.mockResolvedValue('default-value');
   });
 
   /**
@@ -39,13 +44,13 @@ describe('Control Lambda Property Tests', () => {
     it('should return valid JWT token with 1-hour expiration for matching passwords and error for non-matching passwords', async () => {
       await fc.assert(
         fc.asyncProperty(
-          fc.string({ minLength: 8, maxLength: 64 }), // stored password
-          fc.string({ minLength: 8, maxLength: 64 }), // provided password
+          fc.string({ minLength: 8, maxLength: 64 }).filter(s => s.trim().length > 0), // stored password - must not be only whitespace
+          fc.string({ minLength: 8, maxLength: 64 }).filter(s => s.trim().length > 0), // provided password - must not be only whitespace
           async (storedPassword, providedPassword) => {
             const jwtSecret = 'test-jwt-secret-for-testing';
             
             // Setup mocks
-            mockGetSecret
+            mockGetParameter
               .mockResolvedValueOnce(storedPassword) // admin password
               .mockResolvedValueOnce(jwtSecret); // JWT secret
 
@@ -82,15 +87,16 @@ describe('Control Lambda Property Tests', () => {
         fc.asyncProperty(
           fc.oneof(
             fc.constant(''), // empty password
-            fc.string({ minLength: 1, maxLength: 7 }), // short password
-            fc.string({ minLength: 65 }) // very long password
+            fc.string({ minLength: 1, maxLength: 7 }).filter(s => s.trim().length > 0), // short password but not only whitespace
+            fc.string({ minLength: 65 }).filter(s => s.trim().length > 0), // very long password but not only whitespace
+            fc.string({ minLength: 1, maxLength: 64 }).filter(s => s.trim().length === 0 && s.length > 0) // only whitespace
           ),
           fc.string({ minLength: 32, maxLength: 128 }), // JWT secret
           async (providedPassword, jwtSecret) => {
             const storedPassword = 'valid-admin-password-123';
             
             // Setup mocks
-            mockGetSecret
+            mockGetParameter
               .mockResolvedValueOnce(storedPassword)
               .mockResolvedValueOnce(jwtSecret);
 
@@ -102,8 +108,8 @@ describe('Control Lambda Property Tests', () => {
 
             const result = await handler(event as APIGatewayProxyEvent);
 
-            if (providedPassword === '') {
-              // Empty password should be rejected with 400
+            if (providedPassword === '' || providedPassword.trim().length === 0) {
+              // Empty password or only whitespace should be rejected with 400
               expect(result.statusCode).toBe(400);
               const responseBody = JSON.parse(result.body);
               expect(responseBody.error).toBe('VALIDATION_ERROR');
@@ -283,11 +289,11 @@ describe('Control Lambda Property Tests', () => {
   });
 
   /**
-   * Property 10: Secret Isolation
+   * Property 10: Parameter Isolation
    * Validates: Requirements 13.3, 13.5
    */
-  describe('Property 10: Secret Isolation', () => {
-    it('should not expose sensitive secrets in API responses', async () => {
+  describe('Property 10: Parameter Isolation', () => {
+    it('should not expose sensitive parameters in API responses', async () => {
       await fc.assert(
         fc.asyncProperty(
           fc.oneof(
@@ -298,15 +304,15 @@ describe('Control Lambda Property Tests', () => {
           fc.string({ minLength: 32, maxLength: 128 }), // Mock JWT secret
           fc.string({ minLength: 32, maxLength: 128 }), // Mock API token
           async (endpoint, adminPassword, jwtSecret, apiToken) => {
-            // Mock the secrets that should NOT appear in responses
-            const sensitiveSecrets = [
+            // Mock the parameters that should NOT appear in responses
+            const sensitiveParameters = [
               adminPassword,
               jwtSecret,
               apiToken,
-              'satisfactory-admin-password',
-              'satisfactory-jwt-secret',
-              'satisfactory-api-token',
-              'satisfactory-server-admin-password'
+              '/satisfactory/admin-password',
+              '/satisfactory/jwt-secret',
+              '/satisfactory/api-token',
+              '/satisfactory/server-admin-password'
             ];
 
             // Create test event
@@ -322,15 +328,15 @@ describe('Control Lambda Property Tests', () => {
             expect(result.statusCode).toBeDefined();
             expect(result.body).toBeDefined();
             
-            // Check that response body doesn't contain sensitive secrets
+            // Check that response body doesn't contain sensitive parameters
             const responseBody = result.body;
             
-            for (const secret of sensitiveSecrets) {
-              // Secrets should not appear in the response body
-              expect(responseBody).not.toContain(secret);
+            for (const parameter of sensitiveParameters) {
+              // Parameters should not appear in the response body
+              expect(responseBody).not.toContain(parameter);
             }
             
-            // If the response is JSON, parse it and check for secret fields
+            // If the response is JSON, parse it and check for parameter fields
             try {
               const parsedBody = JSON.parse(responseBody);
               
@@ -339,42 +345,42 @@ describe('Control Lambda Property Tests', () => {
                 'adminPassword',
                 'jwtSecret',
                 'apiToken',
-                'satisfactory-admin-password',
-                'satisfactory-jwt-secret',
-                'satisfactory-api-token',
-                'satisfactory-server-admin-password'
+                '/satisfactory/admin-password',
+                '/satisfactory/jwt-secret',
+                '/satisfactory/api-token',
+                '/satisfactory/server-admin-password'
               ];
               
               for (const field of forbiddenFields) {
                 expect(parsedBody).not.toHaveProperty(field);
               }
               
-              // Recursively check nested objects for secrets
-              const checkForSecrets = (obj: any) => {
+              // Recursively check nested objects for parameters
+              const checkForParameters = (obj: any) => {
                 if (typeof obj === 'object' && obj !== null) {
                   for (const [key, value] of Object.entries(obj)) {
-                    // Check if key contains secret-related terms
-                    const secretKeywords = ['password', 'secret', 'token', 'key'];
-                    const hasSecretKeyword = secretKeywords.some(keyword => 
+                    // Check if key contains parameter-related terms
+                    const parameterKeywords = ['password', 'secret', 'token', 'key'];
+                    const hasParameterKeyword = parameterKeywords.some(keyword => 
                       key.toLowerCase().includes(keyword)
                     );
                     
-                    if (hasSecretKeyword && typeof value === 'string' && value.length > 10) {
-                      // This might be a secret value, ensure it's not one of our sensitive secrets
-                      for (const secret of sensitiveSecrets) {
-                        expect(value).not.toBe(secret);
+                    if (hasParameterKeyword && typeof value === 'string' && value.length > 10) {
+                      // This might be a parameter value, ensure it's not one of our sensitive parameters
+                      for (const parameter of sensitiveParameters) {
+                        expect(value).not.toBe(parameter);
                       }
                     }
                     
                     // Recursively check nested objects
                     if (typeof value === 'object') {
-                      checkForSecrets(value);
+                      checkForParameters(value);
                     }
                   }
                 }
               };
               
-              checkForSecrets(parsedBody);
+              checkForParameters(parsedBody);
             } catch (e) {
               // If it's not JSON, that's fine, we already checked the raw string
             }

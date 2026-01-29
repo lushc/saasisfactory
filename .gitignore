@@ -73,6 +73,7 @@ admin-panel/.env.production
 !**/secrets-template.json
 # Allow secret management utility files
 !secret-cache.ts
+!parameter-cache.ts
 !secret-manager.ts
 
 # CloudFormation parameters (may contain sensitive data)

@@ -2,25 +2,41 @@ import * as fc from 'fast-check';
 import jwt from 'jsonwebtoken';
 import { handler } from './index';
 import { APIGatewayRequestAuthorizerEvent, Context } from 'aws-lambda';
-import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { 
   TEST_JWT_SECRET,
   MOCK_ACCOUNT_ID,
   MOCK_API_ID
 } from '../../shared/test-helpers';
 
-// Mock AWS SDK
-jest.mock('@aws-sdk/client-secrets-manager');
-const mockSecretsClient = SecretsManagerClient as jest.MockedClass<typeof SecretsManagerClient>;
+// Mock AWS clients
+jest.mock('../../shared/aws-clients');
+jest.mock('../../shared/parameter-cache');
+
 const mockSend = jest.fn();
+const mockGetSSMClient = jest.fn(() => ({ send: mockSend }));
+const mockCacheGet = jest.fn();
+const mockCacheSet = jest.fn();
+
+// Mock the aws-clients module
+const awsClients = require('../../shared/aws-clients');
+awsClients.getSSMClient = mockGetSSMClient;
+
+// Mock the parameter cache
+const parameterCache = require('../../shared/parameter-cache');
+parameterCache.parameterCache = {
+  get: mockCacheGet,
+  set: mockCacheSet
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockSecretsClient.prototype.send = mockSend;
+  mockCacheGet.mockResolvedValue(null); // Default: no cache hit
   
-  // Mock Secrets Manager response
+  // Mock Parameter Store response
   mockSend.mockResolvedValue({
-    SecretString: TEST_JWT_SECRET
+    Parameter: {
+      Value: TEST_JWT_SECRET
+    }
   });
 });
 

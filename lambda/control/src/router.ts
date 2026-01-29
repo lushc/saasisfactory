@@ -23,7 +23,7 @@ import {
   sanitizeInput 
 } from '../../shared/error-handler';
 import { validators } from '../../shared/validation';
-import { getSecret, putSecret } from '../../shared/secret-manager';
+import { getParameter, putParameter } from '../../shared/parameter-store';
 import { HTTP_STATUS, ERROR_CODES } from '../../shared/constants';
 import { 
   updateServiceDesiredCount, 
@@ -131,7 +131,7 @@ export class ApiRouter {
     
     try {
       // Get JWT secret key (with caching)
-      const jwtSecret = await getSecret(config.secrets.jwtSecret);
+      const jwtSecret = await getParameter(config.parameters.jwtSecret);
       
       // Verify JWT token
       jwt.verify(token, jwtSecret);
@@ -157,15 +157,15 @@ export class ApiRouter {
     // Sanitize input
     const sanitizedPassword = sanitizeInput(request.password);
     
-    // Get admin password from Secrets Manager
-    const adminPassword = await getSecret(config.secrets.adminPassword);
+    // Get admin password from Parameter Store
+    const adminPassword = await getParameter(config.parameters.adminPassword);
     
     if (sanitizedPassword !== adminPassword) {
       throw new AuthenticationError('Invalid password');
     }
 
     // Generate JWT token
-    const jwtSecret = await getSecret(config.secrets.jwtSecret);
+    const jwtSecret = await getParameter(config.parameters.jwtSecret);
     const currentTime = Math.floor(Date.now() / 1000);
     
     const payload = {
@@ -201,14 +201,18 @@ export class ApiRouter {
     // Get public IP
     const publicIp = await getTaskPublicIp(task.taskArn!);
     
+    if (!publicIp) {
+      throw new Error('Failed to get public IP for task');
+    }
+    
     // Wait for server to be ready
     await waitForServerReady(publicIp);
     
     // Claim or login to server
     const adminToken = await claimOrLoginToServer(publicIp);
     
-    // Store API token in Secrets Manager
-    await putSecret(config.secrets.apiToken, adminToken);
+    // Store API token in Parameter Store
+    await putParameter(config.parameters.apiToken, adminToken);
     
     // Create EventBridge rule for monitoring
     await createMonitorRule(MONITOR_LAMBDA_ARN);
@@ -237,8 +241,8 @@ export class ApiRouter {
       const apiToken = await ensureValidApiToken(task.publicIp);
       
       // Create API client and shutdown server
-      const apiClient = new SatisfactoryApiClient(task.publicIp, apiToken);
-      await apiClient.shutdown();
+      const apiClient = new SatisfactoryApiClient(task.publicIp);
+      await apiClient.shutdown(apiToken);
     }
     
     // Update ECS service desired count to 0
@@ -281,23 +285,27 @@ export class ApiRouter {
     };
     
     // If server is running, get additional details
-    if (serverState === 'running' && task.publicIp) {
-      try {
-        const apiToken = await ensureValidApiToken(task.publicIp);
-        const apiClient = new SatisfactoryApiClient(task.publicIp, apiToken);
-        const serverState = await apiClient.queryServerState();
-        
-        response = {
-          ...response,
-          publicIp: task.publicIp,
-          playerCount: serverState.playerCount,
-          serverName: serverState.serverName,
-          gamePhase: serverState.gamePhase
-        };
-      } catch (error) {
-        console.error('Failed to get server details:', error);
-        // Return basic status even if API call fails
-        response.publicIp = task.publicIp;
+    if (serverState === 'running') {
+      const runningTask = await getRunningTask(CLUSTER_NAME, SERVICE_NAME);
+      
+      if (runningTask && runningTask.publicIp) {
+        try {
+          const apiToken = await ensureValidApiToken(runningTask.publicIp);
+          const apiClient = new SatisfactoryApiClient(runningTask.publicIp);
+          const serverStateData = await apiClient.queryServerState(apiToken);
+          
+          response = {
+            ...response,
+            publicIp: runningTask.publicIp,
+            playerCount: serverStateData.serverGameState.numConnectedPlayers,
+            serverName: serverStateData.serverGameState.activeSessionName,
+            gamePhase: serverStateData.serverGameState.gamePhase
+          };
+        } catch (error) {
+          console.error('Failed to get server details:', error);
+          // Return basic status even if API call fails
+          response.publicIp = runningTask.publicIp;
+        }
       }
     }
     
@@ -308,7 +316,7 @@ export class ApiRouter {
    * Handle get client password requests
    */
   private async handleGetClientPassword(): Promise<APIGatewayProxyResult> {
-    const password = await getSecret(config.secrets.clientPassword);
+    const password = await getParameter(config.parameters.clientPassword);
     
     const response: ClientPasswordResponse = {
       password: password || null
@@ -343,12 +351,12 @@ export class ApiRouter {
       const apiToken = await ensureValidApiToken(task.publicIp);
       
       // Update server password
-      const apiClient = new SatisfactoryApiClient(task.publicIp, apiToken);
-      await apiClient.setClientPassword(sanitizedPassword);
+      const apiClient = new SatisfactoryApiClient(task.publicIp);
+      await apiClient.setClientPassword(apiToken, sanitizedPassword);
     }
     
-    // Store password in Secrets Manager
-    await putSecret(config.secrets.clientPassword, sanitizedPassword);
+    // Store password in Parameter Store
+    await putParameter(config.parameters.clientPassword, sanitizedPassword);
     
     const response: SetClientPasswordResponse = {
       message: 'Client password updated successfully'
